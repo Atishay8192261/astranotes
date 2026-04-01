@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+.env
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# AstraNotes data directory (contains user notes - do not commit)
+data/
+
+# Encryption keys (NEVER commit)
+*.key
+
+# Machine-local Claude Code settings
+.claude/settings.local.json
