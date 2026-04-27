@@ -1,0 +1,42 @@
+%% AstraNotes - Object Diagram
+%% Concrete runtime snapshot at 2026-04-27T13:42:00Z showing live instances of the
+%% classes from class-diagram.mmd. Three Note instances: one public, one private
+%% (body shown as Fernet ciphertext), one tagged class note.
+
+flowchart TB
+    subgraph Snapshot["Runtime snapshot - 2026-04-27T13:42:00Z"]
+        direction TB
+
+        subgraph Services["Application services (singletons)"]
+            manager["manager : NoteManager<br/>repository = repo<br/>privacy = privacy<br/>validator = validator"]
+            repo["repo : JsonFileRepository<br/>data_dir = ~/.astranotes/data"]
+            privacy["privacy : PrivacyService<br/>fernet = Fernet(loaded_key)"]
+            validator["validator : ValidationLayer"]
+        end
+
+        subgraph Notes["In-memory Note instances"]
+            n1["note1 : Note<br/>id = a1f3-...-d402<br/>title = 'Grocery list'<br/>body = 'milk, bread, eggs'<br/>is_private = false<br/>tags = ['errands']<br/>created_at = 2026-04-25T09:14:02Z<br/>modified_at = 2026-04-25T09:14:02Z"]
+            n2["note2 : Note<br/>id = b7c8-...-e012<br/>title = 'Personal journal'<br/>body = b'gAAAAAB...' (Fernet ciphertext)<br/>is_private = true<br/>tags = ['diary']<br/>created_at = 2026-04-26T22:01:55Z<br/>modified_at = 2026-04-27T08:30:11Z"]
+            n3["note3 : Note<br/>id = c9d0-...-f124<br/>title = 'Class notes - CSEN 296B'<br/>body = 'Sprint 1 planning ideas...'<br/>is_private = false<br/>tags = ['scu', 'csen296']<br/>created_at = 2026-04-26T19:00:00Z<br/>modified_at = 2026-04-26T19:00:00Z"]
+        end
+
+        subgraph Disk["Persisted JSON files in data_dir"]
+            f1[("a1f3-...-d402.json<br/>plaintext body")]
+            f2[("b7c8-...-e012.json<br/>body_encoding = base64<br/>body = ciphertext")]
+            f3[("c9d0-...-f124.json<br/>plaintext body")]
+        end
+    end
+
+    manager --> repo
+    manager --> privacy
+    manager --> validator
+
+    repo -.->|loaded| n1
+    repo -.->|loaded| n2
+    repo -.->|loaded| n3
+
+    privacy -.->|decrypts| n2
+
+    n1 -.->|persisted as| f1
+    n2 -.->|persisted as| f2
+    n3 -.->|persisted as| f3

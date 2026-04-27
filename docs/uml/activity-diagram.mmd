@@ -1,0 +1,29 @@
+%% AstraNotes - Activity Diagram
+%% Workflow: "Create a private note" - exercises ValidationLayer, PrivacyService,
+%% JsonFileRepository, and the SPR-02 error-translation gate. Method names match
+%% class-diagram.mmd exactly.
+
+flowchart TD
+    Start([User invokes 'create note' from GUI]) --> Collect[GUI view collects title, body, is_private=true, tags<br/>NotesController forwards to NoteManager]
+    Collect --> Build[NoteManager.create_note builds Note dataclass<br/>id=uuid4, created_at=modified_at=now UTC]
+    Build --> Validate{ValidationLayer.validate<br/>title non-empty?}
+
+    Validate -- no --> RaiseV[Raise ValidationError - FR-01]
+    RaiseV --> Surface1[GUI status bar shows user-friendly message - SPR-02]
+    Surface1 --> End([End])
+
+    Validate -- yes --> PrivacyCheck{is_private?}
+    PrivacyCheck -- yes --> Encrypt[PrivacyService.encrypt body<br/>returns Fernet ciphertext bytes - SPR-01]
+    PrivacyCheck -- no --> KeepPlain[body kept as plaintext str]
+
+    Encrypt --> Save
+    KeepPlain --> Save["NoteRepository.save<br/>JsonFileRepository writes data_dir/{id}.json"]
+
+    Save --> WriteOk{Write succeeded?}
+    WriteOk -- no --> RaiseP[Catch OSError, raise PersistenceError - SPR-02]
+    RaiseP --> Surface2[GUI status bar shows user-friendly message<br/>no file paths or stack traces]
+    Surface2 --> End
+
+    WriteOk -- yes --> Return[Return saved Note to caller]
+    Return --> Confirm[GUI clears editor, refreshes list, shows 'Saved note' + id]
+    Confirm --> End

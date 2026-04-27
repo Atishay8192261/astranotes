@@ -1,0 +1,37 @@
+%% AstraNotes - Use Case Diagram
+%% Mermaid does not support native UML use-case shapes; flowchart with stadium
+%% nodes mimics the standard "ovals inside a system boundary" notation.
+%% Single actor (Solo User) per single-user scope (CLAUDE.md).
+
+flowchart LR
+    user(("Solo User"))
+
+    subgraph System["AstraNotes - local GUI app (3-tier)"]
+        UC1(["Create note<br/>(FR-01)"])
+        UC2(["Edit note<br/>(FR-02)"])
+        UC3(["Delete note<br/>(FR-03)"])
+        UC4(["Toggle note privacy<br/>(FR-04, SPR-01)"])
+        UC5(["List notes sorted by modified_at<br/>(FR-05, FR-08)"])
+        UC6(["Search notes by keyword<br/>(FR-07)"])
+        UC7(["Persist and restore on startup<br/>(FR-05, FR-06, NFR-03)"])
+        UC8(["Surface storage errors safely<br/>(SPR-02, SPR-03)"])
+    end
+
+    user --> UC1
+    user --> UC2
+    user --> UC3
+    user --> UC4
+    user --> UC5
+    user --> UC6
+    user --> UC7
+
+    %% include relationships - every write goes through persistence and error handling
+    UC1 -. include .-> UC7
+    UC2 -. include .-> UC7
+    UC3 -. include .-> UC7
+    UC4 -. include .-> UC7
+    UC1 -. include .-> UC8
+    UC2 -. include .-> UC8
+    UC3 -. include .-> UC8
+    UC4 -. include .-> UC8
+    UC7 -. include .-> UC8
