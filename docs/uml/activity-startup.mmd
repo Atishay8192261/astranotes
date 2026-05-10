@@ -1,0 +1,30 @@
+%% AstraNotes - Activity Diagram (FR-05 startup persistence)
+%% Auto-create data directory on first launch. Load loop skips bad files with
+%% an error logged. OSError translated to PersistenceError per SPR-02.
+
+flowchart TD
+    Start([python -m astranotes launches]) --> ResolveDir[Resolve data_dir from ASTRANOTES_DATA_DIR<br/>or default ~/.astranotes/notes]
+    ResolveDir --> DirExists{data_dir exists?}
+
+    DirExists -- no --> TryMkdir[mkdir parents=True, exist_ok=True]
+    TryMkdir --> MkdirOk{mkdir succeeded?}
+    MkdirOk -- no --> RaiseDir[Catch OSError, raise PersistenceError - SPR-02]
+    RaiseDir --> SurfaceDir[CLI surfaces user-friendly message]
+    SurfaceDir --> End([End])
+    MkdirOk -- yes --> ListFiles
+
+    DirExists -- yes --> ListFiles[Glob data_dir/*.json]
+    ListFiles --> Empty{Any files?}
+    Empty -- no --> ReturnEmpty[Return empty list, CLI shows 'No notes yet']
+    ReturnEmpty --> End
+
+    Empty -- yes --> Loop[For each *.json file]
+    Loop --> ReadFile[Read file, json.loads payload]
+    ReadFile --> Parsed{Read + parse + build Note ok?}
+    Parsed -- no --> LogSkip[Log error, skip file - FR-05 corrupt-file rule]
+    LogSkip --> Next
+    Parsed -- yes --> AppendNote[Append Note to in-memory list]
+    AppendNote --> Next[More files?]
+    Next -- yes --> Loop
+    Next -- no --> ReturnNotes[Return Notes list, CLI shows menu]
+    ReturnNotes --> End
