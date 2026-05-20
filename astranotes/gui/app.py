@@ -61,8 +61,16 @@ class AstraNotesApp(ctk.CTk):
         ).pack(side="left", padx=4)
 
     def _build_sidebar(self) -> None:
-        self._sidebar = ctk.CTkScrollableFrame(self, width=270, label_text="Notes")
-        self._sidebar.grid(row=1, column=0, sticky="nsw", padx=(10, 6), pady=10)
+        wrapper = ctk.CTkFrame(self, width=280, fg_color="transparent")
+        wrapper.grid(row=1, column=0, sticky="nsw", padx=(10, 6), pady=10)
+        wrapper.grid_rowconfigure(1, weight=1)
+
+        self._search_entry = ctk.CTkEntry(wrapper, placeholder_text="Search title or body...")
+        self._search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        self._search_entry.bind("<KeyRelease>", lambda _e: self.refresh_notes_list())
+
+        self._sidebar = ctk.CTkScrollableFrame(wrapper, width=270, label_text="Notes")
+        self._sidebar.grid(row=1, column=0, sticky="nsew")
 
     def _build_editor(self) -> None:
         editor = ctk.CTkFrame(self)
@@ -110,11 +118,11 @@ class AstraNotesApp(ctk.CTk):
     def refresh_notes_list(self) -> None:
         for child in self._sidebar.winfo_children():
             child.destroy()
-        notes = self._controller.list_notes()
+        keyword = self._search_entry.get().strip() if hasattr(self, "_search_entry") else ""
+        notes = self._controller.search_notes(keyword) if keyword else self._controller.list_notes()
         if not notes:
-            ctk.CTkLabel(self._sidebar, text="No notes yet.", text_color="gray").pack(
-                pady=12
-            )
+            placeholder = "No matches." if keyword else "No notes yet."
+            ctk.CTkLabel(self._sidebar, text=placeholder, text_color="gray").pack(pady=12)
             return
         for note in notes:
             flag = "[private] " if note.is_private else ""

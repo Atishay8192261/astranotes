@@ -97,3 +97,44 @@ def test_list_notes_sorted_by_modified_desc(manager: NoteManager) -> None:
 
 def test_list_notes_empty_collection_returns_empty_list(manager: NoteManager) -> None:
     assert manager.list_notes() == []
+
+
+def test_search_notes_matches_title_and_body_case_insensitive(manager: NoteManager) -> None:
+    manager.create_note(title="Grocery List", body="milk, eggs")
+    manager.create_note(title="Meeting", body="discuss MILK delivery")
+    manager.create_note(title="unrelated", body="nothing here")
+    titles = {n.title for n in manager.search_notes("milk")}
+    assert titles == {"Grocery List", "Meeting"}
+
+
+def test_search_notes_decrypts_private_notes_before_matching(manager: NoteManager) -> None:
+    manager.create_note(title="diary", body="secret password", is_private=True)
+    results = manager.search_notes("password")
+    assert [n.title for n in results] == ["diary"]
+
+
+def test_search_notes_empty_keyword_returns_empty(manager: NoteManager) -> None:
+    manager.create_note(title="anything", body="anything")
+    assert manager.search_notes("") == []
+    assert manager.search_notes("   ") == []
+
+
+def test_search_notes_empty_collection_returns_empty(manager: NoteManager) -> None:
+    assert manager.search_notes("anything") == []
+
+
+def test_search_notes_skips_undecryptable_private_note(tmp_path: Path) -> None:
+    writer = NoteManager(
+        repository=JsonFileRepository(tmp_path),
+        validation=ValidationLayer(),
+        privacy=PrivacyService(PrivacyService.generate_key()),
+    )
+    writer.create_note(title="public match", body="findme")
+    writer.create_note(title="locked", body="findme too", is_private=True)
+    reader = NoteManager(
+        repository=JsonFileRepository(tmp_path),
+        validation=ValidationLayer(),
+        privacy=PrivacyService(PrivacyService.generate_key()),
+    )
+    titles = [n.title for n in reader.search_notes("findme")]
+    assert titles == ["public match"]
