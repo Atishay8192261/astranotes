@@ -1,4 +1,4 @@
-"""NoteManager: orchestrates validation, privacy, and persistence (FR-01, FR-04, FR-05, FR-08)."""
+"""NoteManager: orchestrates validation, privacy, and persistence (FR-01, FR-04, FR-05, FR-07, FR-08)."""
 
 from __future__ import annotations
 
@@ -64,3 +64,17 @@ class NoteManager:
                 visible.append(stored)
         visible.sort(key=lambda n: (n.modified_at, n.created_at), reverse=True)
         return visible
+
+    def search_notes(self, keyword: str) -> list[Note]:
+        """Keyword search across titles and bodies (FR-07).
+
+        Case-insensitive plain substring match (not regex). Private notes are
+        decrypted before matching; notes whose bodies fail to decrypt are
+        skipped with an error logged (SPR-01, SPR-02). Empty/whitespace
+        keywords return an empty list. Results follow FR-08 ordering.
+        """
+        needle = keyword.strip().lower()
+        if not needle:
+            return []
+        matches = [n for n in self.list_notes() if needle in n.title.lower() or needle in n.body.lower()]
+        return matches
