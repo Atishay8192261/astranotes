@@ -63,3 +63,12 @@ def test_delete_removes_note(controller: NotesController) -> None:
 
 def test_list_empty_returns_empty(controller: NotesController) -> None:
     assert controller.list_notes() == []
+
+
+def test_search_through_controller(controller: NotesController) -> None:
+    controller.create_note("Grocery", "milk eggs", is_private=False)
+    controller.create_note("diary", "secret password", is_private=True)
+    controller.create_note("unrelated", "x", is_private=False)
+    titles = {n.title for n in controller.search_notes("password")}
+    assert titles == {"diary"}
+    assert controller.search_notes("") == []

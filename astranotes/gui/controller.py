@@ -54,6 +54,12 @@ class NotesController:
             return ActionResult(False, str(exc))
         return ActionResult(True, f"Saved note {note.id}")
 
+    def search_notes(self, keyword: str) -> list[Note]:
+        try:
+            return self._manager.search_notes(keyword)
+        except AstraNotesError:
+            return []
+
     def delete_note(self, note_id: UUID) -> ActionResult:
         try:
             self._manager._repository.delete(note_id)
