@@ -72,3 +72,39 @@ def test_search_through_controller(controller: NotesController) -> None:
     titles = {n.title for n in controller.search_notes("password")}
     assert titles == {"diary"}
     assert controller.search_notes("") == []
+
+
+def test_update_through_controller(controller: NotesController) -> None:
+    controller.create_note("draft", "v1", is_private=False)
+    note = controller.list_notes()[0]
+    result = controller.update_note(note.id, title="final", body="v2", tags_csv="x,y")
+    assert result.ok
+    loaded = controller.list_notes()[0]
+    assert loaded.title == "final"
+    assert loaded.body == "v2"
+    assert loaded.tags == ["x", "y"]
+
+
+def test_update_unknown_id_returns_failure(controller: NotesController) -> None:
+    from uuid import uuid4
+    result = controller.update_note(uuid4(), title="x", body="y")
+    assert not result.ok
+
+
+def test_set_private_through_controller(controller: NotesController) -> None:
+    controller.create_note("t", "b", is_private=False)
+    note = controller.list_notes()[0]
+    result = controller.set_private(note.id, True)
+    assert result.ok
+    loaded = controller.list_notes()[0]
+    assert loaded.is_private is True
+
+
+def test_delete_routes_through_manager_not_repository(controller: NotesController) -> None:
+    """gap #2: delete must go through NoteManager, not bypass to the repo."""
+    controller.create_note("t", "b", is_private=False)
+    note = controller.list_notes()[0]
+    assert controller.delete_note(note.id).ok
+    from uuid import uuid4
+    result = controller.delete_note(uuid4())
+    assert not result.ok

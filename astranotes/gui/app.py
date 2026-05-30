@@ -149,7 +149,7 @@ class AstraNotesApp(ctk.CTk):
             self._private_switch.select()
         else:
             self._private_switch.deselect()
-        self._set_status(f"Viewing '{note.title}' (Save creates a new note)")
+        self._set_status(f"Editing '{note.title}' (Save updates this note)")
 
     def _new_note(self) -> None:
         self._selected = None
@@ -160,12 +160,23 @@ class AstraNotesApp(ctk.CTk):
         self._set_status("New note")
 
     def _save_note(self) -> None:
-        result = self._controller.create_note(
-            title=self._title_entry.get(),
-            body=self._body_box.get("1.0", "end").rstrip("\n"),
-            is_private=bool(self._private_switch.get()),
-            tags_csv=self._tags_entry.get(),
-        )
+        title = self._title_entry.get()
+        body = self._body_box.get("1.0", "end").rstrip("\n")
+        tags_csv = self._tags_entry.get()
+        switch_private = bool(self._private_switch.get())
+
+        if self._selected is None:
+            result = self._controller.create_note(
+                title=title, body=body, is_private=switch_private, tags_csv=tags_csv
+            )
+        else:
+            result = self._controller.update_note(
+                self._selected.id, title=title, body=body, tags_csv=tags_csv
+            )
+            if result.ok and switch_private != self._selected.is_private:
+                toggle = self._controller.set_private(self._selected.id, switch_private)
+                if not toggle.ok:
+                    result = toggle
         self._set_status(result.message)
         if result.ok:
             self._new_note()
