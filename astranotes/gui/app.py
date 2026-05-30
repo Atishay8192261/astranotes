@@ -30,11 +30,12 @@ class AstraNotesApp(ctk.CTk):
         self._key_source = key_source
         self._selected: Note | None = None
 
-        self.title("AstraNotes")
-        self.geometry("1000x640")
-        self.minsize(820, 520)
+        self.title("AstraNotes — local-first notes")
+        self.geometry("1100x700")
+        self.minsize(880, 560)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(1, weight=1)
+        self.configure(fg_color=("#f4f5f7", "#1a1c20"))
 
         self._build_header()
         self._build_sidebar()
@@ -44,81 +45,159 @@ class AstraNotesApp(ctk.CTk):
 
     # ---- layout ----------------------------------------------------------
     def _build_header(self) -> None:
-        header = ctk.CTkFrame(self, height=52, corner_radius=0)
+        header = ctk.CTkFrame(
+            self, height=64, corner_radius=0, fg_color=("#ffffff", "#23262d")
+        )
         header.grid(row=0, column=0, columnspan=2, sticky="ew")
         header.grid_columnconfigure(1, weight=1)
 
+        title_box = ctk.CTkFrame(header, fg_color="transparent")
+        title_box.grid(row=0, column=0, padx=(18, 0), pady=10, sticky="w")
         ctk.CTkLabel(
-            header,
-            text="  AstraNotes",
-            font=ctk.CTkFont(size=20, weight="bold"),
-        ).grid(row=0, column=0, padx=(12, 0), pady=10, sticky="w")
+            title_box,
+            text="AstraNotes",
+            font=ctk.CTkFont(size=22, weight="bold"),
+        ).pack(anchor="w")
+        self._subtitle = ctk.CTkLabel(
+            title_box,
+            text="local-first · private by design",
+            font=ctk.CTkFont(size=11),
+            text_color=("#6c757d", "#94a3b8"),
+        )
+        self._subtitle.pack(anchor="w")
 
         actions = ctk.CTkFrame(header, fg_color="transparent")
-        actions.grid(row=0, column=2, padx=12, pady=8, sticky="e")
-        ctk.CTkButton(actions, text="Settings", width=90, command=self._open_settings).pack(
-            side="left", padx=4
-        )
-        ctk.CTkButton(actions, text="About", width=80, command=self._open_about).pack(
-            side="left", padx=4
-        )
-        ctk.CTkButton(
-            actions, text="Toggle Theme", width=110, command=self._toggle_theme
-        ).pack(side="left", padx=4)
+        actions.grid(row=0, column=2, padx=16, pady=12, sticky="e")
+        for label, cmd in (
+            ("Settings", self._open_settings),
+            ("About", self._open_about),
+            ("Theme", self._toggle_theme),
+        ):
+            ctk.CTkButton(
+                actions, text=label, width=90, height=32, corner_radius=8, command=cmd
+            ).pack(side="left", padx=4)
 
     def _build_sidebar(self) -> None:
-        wrapper = ctk.CTkFrame(self, width=280, fg_color="transparent")
-        wrapper.grid(row=1, column=0, sticky="nsw", padx=(10, 6), pady=10)
-        wrapper.grid_rowconfigure(1, weight=1)
+        wrapper = ctk.CTkFrame(self, width=300, fg_color="transparent")
+        wrapper.grid(row=1, column=0, sticky="nsw", padx=(14, 8), pady=14)
+        wrapper.grid_rowconfigure(2, weight=1)
 
-        self._search_entry = ctk.CTkEntry(wrapper, placeholder_text="Search title or body...")
-        self._search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        self._search_entry = ctk.CTkEntry(
+            wrapper,
+            placeholder_text="Search title or body…",
+            height=36,
+            corner_radius=10,
+        )
+        self._search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         self._search_entry.bind("<KeyRelease>", lambda _e: self.refresh_notes_list())
 
-        self._sidebar = ctk.CTkScrollableFrame(wrapper, width=270, label_text="Notes")
-        self._sidebar.grid(row=1, column=0, sticky="nsew")
+        self._sidebar_header = ctk.CTkLabel(
+            wrapper,
+            text="Notes",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=("#6c757d", "#94a3b8"),
+            anchor="w",
+        )
+        self._sidebar_header.grid(row=1, column=0, sticky="ew", pady=(0, 4), padx=4)
+
+        self._sidebar = ctk.CTkScrollableFrame(
+            wrapper, width=290, fg_color=("#ffffff", "#23262d"), corner_radius=12
+        )
+        self._sidebar.grid(row=2, column=0, sticky="nsew")
 
     def _build_editor(self) -> None:
-        editor = ctk.CTkFrame(self)
-        editor.grid(row=1, column=1, sticky="nsew", padx=(6, 10), pady=10)
+        editor = ctk.CTkFrame(self, fg_color=("#ffffff", "#23262d"), corner_radius=12)
+        editor.grid(row=1, column=1, sticky="nsew", padx=(8, 14), pady=14)
         editor.grid_columnconfigure(0, weight=1)
-        editor.grid_rowconfigure(4, weight=1)
+        editor.grid_rowconfigure(5, weight=1)
 
-        self._title_entry = ctk.CTkEntry(editor, placeholder_text="Title")
-        self._title_entry.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 6))
-
-        self._tags_entry = ctk.CTkEntry(
-            editor, placeholder_text="Tags (comma separated, optional)"
+        ctk.CTkLabel(
+            editor,
+            text="Title",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=("#6c757d", "#94a3b8"),
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w", padx=18, pady=(16, 2))
+        self._title_entry = ctk.CTkEntry(
+            editor,
+            placeholder_text="Give your note a title…",
+            height=38,
+            corner_radius=10,
+            font=ctk.CTkFont(size=14),
         )
-        self._tags_entry.grid(row=1, column=0, sticky="ew", padx=12, pady=6)
+        self._title_entry.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 8))
 
-        self._private_switch = ctk.CTkSwitch(editor, text="Private (encrypt body at rest)")
-        self._private_switch.grid(row=2, column=0, sticky="w", padx=12, pady=6)
+        row2 = ctk.CTkFrame(editor, fg_color="transparent")
+        row2.grid(row=2, column=0, sticky="ew", padx=18, pady=6)
+        row2.grid_columnconfigure(0, weight=1)
+        self._tags_entry = ctk.CTkEntry(
+            row2,
+            placeholder_text="Tags (comma separated)",
+            height=34,
+            corner_radius=10,
+        )
+        self._tags_entry.grid(row=0, column=0, sticky="ew")
+        self._private_switch = ctk.CTkSwitch(
+            row2, text="Private (encrypt at rest)", height=34
+        )
+        self._private_switch.grid(row=0, column=1, padx=(12, 0))
 
-        ctk.CTkLabel(editor, text="Body").grid(row=3, column=0, sticky="w", padx=12)
-        self._body_box = ctk.CTkTextbox(editor, wrap="word")
-        self._body_box.grid(row=4, column=0, sticky="nsew", padx=12, pady=6)
+        ctk.CTkLabel(
+            editor,
+            text="Body",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=("#6c757d", "#94a3b8"),
+            anchor="w",
+        ).grid(row=3, column=0, sticky="w", padx=18, pady=(10, 2))
+        self._body_box = ctk.CTkTextbox(
+            editor,
+            wrap="word",
+            corner_radius=10,
+            font=ctk.CTkFont(size=13),
+            fg_color=("#fafbfc", "#1d2026"),
+        )
+        self._body_box.grid(row=5, column=0, sticky="nsew", padx=18, pady=(0, 8))
 
         buttons = ctk.CTkFrame(editor, fg_color="transparent")
-        buttons.grid(row=5, column=0, sticky="ew", padx=12, pady=(6, 12))
-        ctk.CTkButton(buttons, text="New", width=90, command=self._new_note).pack(
-            side="left", padx=(0, 6)
-        )
-        ctk.CTkButton(buttons, text="Save", width=110, command=self._save_note).pack(
-            side="left", padx=6
-        )
+        buttons.grid(row=6, column=0, sticky="ew", padx=18, pady=(0, 16))
+        ctk.CTkButton(
+            buttons, text="New", width=90, height=36, corner_radius=10, command=self._new_note
+        ).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(
+            buttons, text="Save", width=120, height=36, corner_radius=10, command=self._save_note
+        ).pack(side="left", padx=6)
         ctk.CTkButton(
             buttons,
             text="Delete",
             width=100,
-            fg_color="#9a0007",
-            hover_color="#c1121f",
+            height=36,
+            corner_radius=10,
+            fg_color="#b91c1c",
+            hover_color="#dc2626",
             command=self._delete_note,
-        ).pack(side="left", padx=6)
+        ).pack(side="right", padx=(6, 0))
 
     def _build_statusbar(self) -> None:
-        self._status = ctk.CTkLabel(self, text="Ready", anchor="w", height=24)
-        self._status.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=(0, 8))
+        bar = ctk.CTkFrame(
+            self, fg_color=("#ffffff", "#23262d"), corner_radius=0, height=32
+        )
+        bar.grid(row=2, column=0, columnspan=2, sticky="ew")
+        bar.grid_columnconfigure(0, weight=1)
+
+        self._status = ctk.CTkLabel(
+            bar, text="Ready", anchor="w", font=ctk.CTkFont(size=11)
+        )
+        self._status.grid(row=0, column=0, sticky="w", padx=14, pady=6)
+
+        key_label = "[ unlocked ]" if self._controller.has_privacy_key else "[ no passphrase set ]"
+        self._key_indicator = ctk.CTkLabel(
+            bar,
+            text=key_label,
+            anchor="e",
+            font=ctk.CTkFont(size=11),
+            text_color=("#6c757d", "#94a3b8"),
+        )
+        self._key_indicator.grid(row=0, column=1, sticky="e", padx=14, pady=6)
 
     # ---- behavior (delegates to the controller) --------------------------
     def refresh_notes_list(self) -> None:
@@ -126,22 +205,62 @@ class AstraNotesApp(ctk.CTk):
             child.destroy()
         keyword = self._search_entry.get().strip() if hasattr(self, "_search_entry") else ""
         notes = self._controller.search_notes(keyword) if keyword else self._controller.list_notes()
+        if hasattr(self, "_sidebar_header"):
+            count = len(notes)
+            suffix = "" if count == 1 else "s"
+            label = f"  Notes  ·  {count} match{'es' if count != 1 else ''}" if keyword else f"  Notes  ·  {count} note{suffix}"
+            self._sidebar_header.configure(text=label)
         if not notes:
-            placeholder = "No matches." if keyword else "No notes yet."
-            ctk.CTkLabel(self._sidebar, text=placeholder, text_color="gray").pack(pady=12)
+            placeholder = (
+                "No matches for that search."
+                if keyword
+                else "No notes yet — create one on the right."
+            )
+            ctk.CTkLabel(
+                self._sidebar,
+                text=placeholder,
+                text_color=("#9aa0a6", "#6c757d"),
+                font=ctk.CTkFont(size=12),
+            ).pack(pady=24, padx=14)
             return
         for note in notes:
-            flag = "[private] " if note.is_private else ""
-            label = f"{flag}{note.title}\n{note.modified_at:%Y-%m-%d %H:%M}"
-            ctk.CTkButton(
-                self._sidebar,
-                text=label,
-                anchor="w",
-                height=46,
-                fg_color="transparent",
-                hover_color=("#d9d9d9", "#3a3a3a"),
-                command=lambda n=note: self._select_note(n),
-            ).pack(fill="x", pady=2)
+            self._render_sidebar_item(note)
+
+    def _render_sidebar_item(self, note: Note) -> None:
+        is_selected = self._selected is not None and self._selected.id == note.id
+        item = ctk.CTkFrame(
+            self._sidebar,
+            fg_color=("#e9efff", "#2d3140") if is_selected else "transparent",
+            corner_radius=10,
+            cursor="hand2",
+        )
+        item.pack(fill="x", padx=6, pady=3)
+        item.bind("<Button-1>", lambda _e, n=note: self._select_note(n))
+
+        top = ctk.CTkLabel(
+            item,
+            text=note.title or "(untitled)",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="w",
+            justify="left",
+        )
+        top.pack(fill="x", padx=12, pady=(8, 0))
+        top.bind("<Button-1>", lambda _e, n=note: self._select_note(n))
+
+        meta_parts = [f"{note.modified_at:%b %d  ·  %H:%M}"]
+        if note.is_private:
+            meta_parts.append("private")
+        if note.tags:
+            meta_parts.append(" · ".join(note.tags[:3]))
+        meta = ctk.CTkLabel(
+            item,
+            text="  ·  ".join(meta_parts),
+            font=ctk.CTkFont(size=10),
+            text_color=("#6c757d", "#94a3b8"),
+            anchor="w",
+        )
+        meta.pack(fill="x", padx=12, pady=(0, 8))
+        meta.bind("<Button-1>", lambda _e, n=note: self._select_note(n))
 
     def _select_note(self, note: Note) -> None:
         self._selected = note
@@ -205,6 +324,10 @@ class AstraNotesApp(ctk.CTk):
 
     def _set_status(self, text: str) -> None:
         self._status.configure(text=text)
+        if hasattr(self, "_key_indicator"):
+            self._key_indicator.configure(
+                text="[ unlocked ]" if self._controller.has_privacy_key else "[ no passphrase set ]"
+            )
 
     def _ensure_passphrase(self) -> bool:
         """Lazy passphrase setup the first time a private note is saved."""

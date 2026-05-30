@@ -14,6 +14,7 @@ htmlcov/
 
 # AstraNotes data directory (contains user notes - do not commit)
 data/
+demo-data/
 
 # Encryption keys (NEVER commit)
 *.key
