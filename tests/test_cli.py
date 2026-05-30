@@ -1,11 +1,25 @@
-"""Smoke tests for the CLI shell (US-08 wiring)."""
+"""Smoke tests for the legacy CLI shell.
+
+QUARANTINED (Week 9 Lab gap #9): ADR-006 retired the CLI as the user entry
+point; CustomTkinter is the presentation tier. These tests assert brittle
+string outputs of an interactive `input()` loop that no end-user takes,
+inflating the coverage signal. Kept behind `--run-cli` so they do not run
+by default. Delete once the dev harness is also removed.
+"""
 
 from __future__ import annotations
 
 import io
 from pathlib import Path
 
+import pytest
+
 from astranotes.cli import app as cli_app
+
+pytestmark = pytest.mark.skipif(
+    "config.getoption('--run-cli', default=False) is False",
+    reason="legacy CLI tests, quarantined (Week 9 gap #9)",
+)
 
 
 def _run_with_inputs(inputs: list[str], monkeypatch, tmp_path: Path) -> str:

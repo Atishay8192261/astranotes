@@ -1,12 +1,14 @@
-"""NoteManager: orchestrates validation, privacy, and persistence (FR-01, FR-04, FR-05, FR-07, FR-08)."""
+"""NoteManager: orchestrates validation, privacy, and persistence (FR-01-FR-08)."""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import replace
+from datetime import datetime, timezone
 from typing import Optional
+from uuid import UUID
 
-from astranotes.models.exceptions import PersistenceError
+from astranotes.models.exceptions import NoteNotFoundError, PersistenceError
 from astranotes.models.note import Note
 from astranotes.repositories.base import NoteRepository
 from astranotes.services.privacy import PrivacyService
@@ -64,6 +66,102 @@ class NoteManager:
                 visible.append(stored)
         visible.sort(key=lambda n: (n.modified_at, n.created_at), reverse=True)
         return visible
+
+    def update_note(
+        self,
+        note_id: UUID,
+        title: Optional[str] = None,
+        body: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+    ) -> Note:
+        """Edit title/body/tags of an existing note (FR-02).
+
+        `created_at` and `id` are immutable; `modified_at` advances. Privacy
+        flag is unchanged here - use `set_private` to toggle it (FR-04).
+        """
+        stored = self._load_stored(note_id)
+        plaintext_body = self._plaintext_body(stored)
+
+        new_title = title if title is not None else stored.title
+        new_body = body if body is not None else plaintext_body
+        new_tags = list(tags) if tags is not None else list(stored.tags)
+
+        candidate = replace(
+            stored,
+            title=new_title,
+            body=new_body,
+            tags=new_tags,
+            is_private=stored.is_private,
+        )
+        self._validation.validate(candidate)
+
+        if stored.is_private:
+            self._require_privacy()
+            persisted_body = self._privacy.encrypt(new_body)
+        else:
+            persisted_body = new_body
+
+        updated = replace(
+            stored,
+            title=new_title,
+            body=persisted_body,
+            tags=new_tags,
+            modified_at=datetime.now(timezone.utc),
+        )
+        self._repository.update(updated)
+        return replace(updated, body=new_body)
+
+    def delete_note(self, note_id: UUID) -> None:
+        """Delete a note by id (FR-03).
+
+        Raises NoteNotFoundError if the id does not exist; PersistenceError if
+        the underlying storage fails. Never silently succeeds.
+        """
+        self._repository.delete(note_id)
+
+    def set_private(self, note_id: UUID, is_private: bool) -> Note:
+        """Toggle the privacy flag on an existing note (FR-04).
+
+        True  -> re-save body as ciphertext.
+        False -> decrypt and re-save body as plaintext.
+        If decryption fails during a True->False toggle, the operation fails
+        and the note is left untouched on disk (refined FR-04).
+        """
+        stored = self._load_stored(note_id)
+        if stored.is_private == is_private:
+            return replace(stored, body=self._plaintext_body(stored))
+
+        plaintext = self._plaintext_body(stored)
+        if is_private:
+            self._require_privacy()
+            new_body = self._privacy.encrypt(plaintext)
+        else:
+            new_body = plaintext
+
+        updated = replace(
+            stored,
+            body=new_body,
+            is_private=is_private,
+            modified_at=datetime.now(timezone.utc),
+        )
+        self._repository.update(updated)
+        return replace(updated, body=plaintext)
+
+    def _load_stored(self, note_id: UUID) -> Note:
+        try:
+            return self._repository.get(note_id)
+        except NoteNotFoundError:
+            raise
+
+    def _plaintext_body(self, stored: Note) -> str:
+        if not stored.is_private:
+            return stored.body if isinstance(stored.body, str) else stored.body.decode("utf-8")
+        self._require_privacy()
+        return self._privacy.decrypt(stored.body)
+
+    def _require_privacy(self) -> None:
+        if self._privacy is None:
+            raise PersistenceError("Operation requires a configured privacy key")
 
     def search_notes(self, keyword: str) -> list[Note]:
         """Keyword search across titles and bodies (FR-07).

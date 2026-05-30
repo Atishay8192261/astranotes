@@ -83,3 +83,109 @@ def test_data_directory_is_auto_created(tmp_path):
     target = tmp_path / "nested" / "data"
     JsonFileRepository(target)
     assert target.exists()
+
+
+# ---------- Corrupt-file branch coverage (gap #5) ---------------------------
+
+
+def test_list_all_skips_files_missing_required_keys(repo, tmp_path):
+    """list_all's except catches KeyError - prove it actually exercises that branch."""
+    good = Note(title="ok")
+    repo.save(good)
+    (tmp_path / "data" / "missing-title.json").write_text('{"id": "x", "body": ""}')
+    loaded = repo.list_all()
+    assert [n.id for n in loaded] == [good.id]
+
+
+def test_list_all_skips_files_with_bad_uuid(repo, tmp_path):
+    good = Note(title="ok")
+    repo.save(good)
+    (tmp_path / "data" / "bad.json").write_text(
+        '{"id": "not-a-uuid", "title": "x", "body": "", "is_private": false,'
+        ' "created_at": "2026-01-01T00:00:00+00:00",'
+        ' "modified_at": "2026-01-01T00:00:00+00:00", "tags": []}'
+    )
+    loaded = repo.list_all()
+    assert [n.id for n in loaded] == [good.id]
+
+
+def test_list_all_skips_files_with_bad_iso_timestamp(repo, tmp_path):
+    good = Note(title="ok")
+    repo.save(good)
+    from uuid import uuid4
+    (tmp_path / "data" / "badts.json").write_text(
+        '{"id": "' + str(uuid4()) + '", "title": "x", "body": "", "is_private": false,'
+        ' "created_at": "not-a-date", "modified_at": "not-a-date", "tags": []}'
+    )
+    loaded = repo.list_all()
+    assert [n.id for n in loaded] == [good.id]
+
+
+# ---------- Mixed-dir startup (gap #6) --------------------------------------
+
+
+def test_startup_mixed_dir_loads_valid_and_logs_for_corrupt(repo, tmp_path, caplog):
+    """FR-05: 'load valid files, skip corrupt ones with error logged.'"""
+    import logging
+    good = Note(title="keep me")
+    repo.save(good)
+    (tmp_path / "data" / "broken.json").write_text("{not json")
+    (tmp_path / "data" / "missing.json").write_text('{"id": "x"}')
+
+    with caplog.at_level(logging.ERROR, logger="astranotes.repositories.json_file"):
+        loaded = repo.list_all()
+
+    assert [n.id for n in loaded] == [good.id]
+    error_messages = "\n".join(rec.message for rec in caplog.records)
+    assert "broken.json" in error_messages or "missing.json" in error_messages
+
+
+# ---------- Filesystem-failure branches (gap #13) ---------------------------
+
+
+def test_save_raises_persistence_error_on_write_failure(repo, monkeypatch):
+    """The except OSError branch in _write must surface as PersistenceError, not OSError."""
+    from astranotes.models.exceptions import PersistenceError
+    note = Note(title="t")
+
+    def boom(self, *a, **kw):
+        raise OSError("disk full")
+    monkeypatch.setattr("pathlib.Path.write_text", boom)
+    with pytest.raises(PersistenceError):
+        repo.save(note)
+
+
+def test_delete_raises_persistence_error_on_unlink_failure(repo, monkeypatch):
+    from astranotes.models.exceptions import PersistenceError
+    note = Note(title="t")
+    repo.save(note)
+
+    def boom(self, *a, **kw):
+        raise PermissionError("readonly")
+    monkeypatch.setattr("pathlib.Path.unlink", boom)
+    with pytest.raises(PersistenceError):
+        repo.delete(note.id)
+
+
+def test_get_raises_persistence_error_on_read_failure(repo, monkeypatch):
+    from astranotes.models.exceptions import PersistenceError
+    note = Note(title="t")
+    repo.save(note)
+
+    def boom(self, *a, **kw):
+        raise OSError("io error")
+    monkeypatch.setattr("pathlib.Path.read_text", boom)
+    with pytest.raises(PersistenceError):
+        repo.get(note.id)
+
+
+# ---------- UTC tzinfo round-trip (gap #15) ---------------------------------
+
+
+def test_round_trip_preserves_utc_tzinfo(repo):
+    from datetime import timezone
+    note = Note(title="t")
+    repo.save(note)
+    loaded = repo.get(note.id)
+    assert loaded.created_at.tzinfo is not None
+    assert loaded.created_at.utcoffset() == timezone.utc.utcoffset(None)
