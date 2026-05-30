@@ -54,6 +54,27 @@ class NotesController:
             return ActionResult(False, str(exc))
         return ActionResult(True, f"Saved note {note.id}")
 
+    def update_note(
+        self,
+        note_id: UUID,
+        title: str,
+        body: str,
+        tags_csv: str = "",
+    ) -> ActionResult:
+        tags = [t.strip() for t in tags_csv.split(",") if t.strip()]
+        try:
+            self._manager.update_note(note_id, title=title, body=body, tags=tags)
+        except AstraNotesError as exc:
+            return ActionResult(False, str(exc))
+        return ActionResult(True, "Note updated")
+
+    def set_private(self, note_id: UUID, is_private: bool) -> ActionResult:
+        try:
+            self._manager.set_private(note_id, is_private)
+        except AstraNotesError as exc:
+            return ActionResult(False, str(exc))
+        return ActionResult(True, "Private" if is_private else "Public")
+
     def search_notes(self, keyword: str) -> list[Note]:
         try:
             return self._manager.search_notes(keyword)
@@ -62,7 +83,7 @@ class NotesController:
 
     def delete_note(self, note_id: UUID) -> ActionResult:
         try:
-            self._manager._repository.delete(note_id)
+            self._manager.delete_note(note_id)
         except AstraNotesError as exc:
             return ActionResult(False, str(exc))
         return ActionResult(True, "Note deleted")
