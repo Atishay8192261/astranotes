@@ -8,9 +8,15 @@ no file path lives in this file - that is what keeps the tiers separate
 
 from __future__ import annotations
 
+import os
+import sys
+
 import customtkinter as ctk
 
+from astranotes.config import passphrase_store, resolve_data_dir
 from astranotes.gui.controller import NotesController, build_default_controller
+from astranotes.gui.passphrase_dialog import prompt_setup, prompt_unlock
+from astranotes.models.exceptions import PersistenceError, ValidationError
 from astranotes.models.note import Note
 
 ctk.set_appearance_mode("dark")
@@ -165,6 +171,11 @@ class AstraNotesApp(ctk.CTk):
         tags_csv = self._tags_entry.get()
         switch_private = bool(self._private_switch.get())
 
+        if switch_private and not self._controller.has_privacy_key:
+            if not self._ensure_passphrase():
+                self._set_status("Passphrase required for private notes")
+                return
+
         if self._selected is None:
             result = self._controller.create_note(
                 title=title, body=body, is_private=switch_private, tags_csv=tags_csv
@@ -194,6 +205,32 @@ class AstraNotesApp(ctk.CTk):
 
     def _set_status(self, text: str) -> None:
         self._status.configure(text=text)
+
+    def _ensure_passphrase(self) -> bool:
+        """Lazy passphrase setup the first time a private note is saved."""
+        store = passphrase_store()
+        if store.exists():
+            for _ in range(3):
+                value = prompt_unlock(self)
+                if value is None:
+                    return False
+                try:
+                    self._controller.set_privacy_service(store.unlock(value))
+                    self._key_source = "passphrase (PBKDF2)"
+                    return True
+                except PersistenceError:
+                    continue
+            return False
+        value = prompt_setup(self)
+        if value is None:
+            return False
+        try:
+            self._controller.set_privacy_service(store.initialize(value))
+            self._key_source = "passphrase (PBKDF2)"
+            return True
+        except (PersistenceError, ValidationError) as exc:
+            self._set_status(str(exc))
+            return False
 
     # ---- dialogs ---------------------------------------------------------
     def _open_settings(self) -> None:
@@ -244,7 +281,49 @@ class AstraNotesApp(ctk.CTk):
 
 
 def main() -> None:
-    controller, key_source = build_default_controller()
+    """Launch the GUI with the right key-source story (ADR-005).
+
+    Precedence:
+      1. ASTRANOTES_KEY env var (legacy / CI / tests) - no prompt.
+      2. Existing passphrase.json - prompt for unlock at launch.
+      3. Neither - launch unlocked; first private note triggers setup.
+    """
+    if os.environ.get("ASTRANOTES_KEY"):
+        controller, key_source = build_default_controller()
+        AstraNotesApp(controller, key_source).mainloop()
+        return
+
+    store = passphrase_store()
+    if store.exists():
+        # Create a hidden root just for the dialog, then build the real window.
+        bootstrap = ctk.CTk()
+        bootstrap.withdraw()
+        privacy = None
+        for _ in range(3):
+            value = prompt_unlock(bootstrap)
+            if value is None:
+                bootstrap.destroy()
+                print("Unlock cancelled. Exiting.", file=sys.stderr)
+                return
+            try:
+                privacy = store.unlock(value)
+                break
+            except PersistenceError:
+                continue
+        bootstrap.destroy()
+        if privacy is None:
+            print("Too many failed unlock attempts. Exiting.", file=sys.stderr)
+            return
+        controller, key_source = build_default_controller(
+            privacy=privacy, key_source="passphrase (PBKDF2)"
+        )
+        AstraNotesApp(controller, key_source).mainloop()
+        return
+
+    # No env var, no passphrase set yet - launch unlocked.
+    controller, key_source = build_default_controller(
+        privacy=None, key_source="no passphrase (set on first private note)"
+    )
     AstraNotesApp(controller, key_source).mainloop()
 
 

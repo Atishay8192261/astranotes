@@ -11,11 +11,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from typing import Optional
+
 from astranotes.config import resolve_data_dir, resolve_privacy
 from astranotes.models.exceptions import AstraNotesError
 from astranotes.models.note import Note
 from astranotes.repositories.json_file import JsonFileRepository
 from astranotes.services.note_manager import NoteManager
+from astranotes.services.privacy import PrivacyService
 from astranotes.services.validation import ValidationLayer
 
 
@@ -28,6 +31,14 @@ class ActionResult:
 class NotesController:
     def __init__(self, manager: NoteManager) -> None:
         self._manager = manager
+
+    @property
+    def has_privacy_key(self) -> bool:
+        return self._manager._privacy is not None
+
+    def set_privacy_service(self, privacy: PrivacyService) -> None:
+        """Inject a passphrase-derived PrivacyService after launch (ADR-005)."""
+        self._manager._privacy = privacy
 
     def list_notes(self) -> list[Note]:
         try:
@@ -89,13 +100,28 @@ class NotesController:
         return ActionResult(True, "Note deleted")
 
 
-def build_default_controller() -> tuple[NotesController, str]:
-    """Wire the default runtime controller. Returns (controller, key_source)."""
+_LEGACY = object()
+
+
+def build_default_controller(
+    privacy: Optional[PrivacyService] = _LEGACY,  # type: ignore[assignment]
+    key_source: Optional[str] = None,
+) -> tuple[NotesController, str]:
+    """Wire the default runtime controller. Returns (controller, key_source).
+
+    Modes:
+      - privacy=_LEGACY (default): use env-var resolver. CLI/tests rely on this.
+      - privacy=None:              build with no key (passphrase set lazily).
+      - privacy=<PrivacyService>:  use the caller's service (passphrase unlock).
+    """
     data_dir = resolve_data_dir()
-    resolution = resolve_privacy()
+    if privacy is _LEGACY:
+        resolution = resolve_privacy()
+        privacy = resolution.privacy
+        key_source = key_source or resolution.source
     manager = NoteManager(
         repository=JsonFileRepository(data_dir),
         validation=ValidationLayer(),
-        privacy=resolution.privacy,
+        privacy=privacy,
     )
-    return NotesController(manager), resolution.source
+    return NotesController(manager), key_source or "passphrase"
