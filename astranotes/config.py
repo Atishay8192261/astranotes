@@ -12,9 +12,11 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
+from astranotes.services.passphrase import PassphraseStore
 from astranotes.services.privacy import PrivacyService
 
 DEFAULT_DATA_DIR = Path.home() / ".astranotes" / "notes"
+DEFAULT_PASSPHRASE_PATH = Path.home() / ".astranotes" / "passphrase.json"
 
 
 class KeyResolution(NamedTuple):
@@ -28,7 +30,20 @@ def resolve_data_dir() -> Path:
     return Path(raw).expanduser() if raw else DEFAULT_DATA_DIR
 
 
+def resolve_passphrase_path() -> Path:
+    raw = os.environ.get("ASTRANOTES_PASSPHRASE_PATH")
+    return Path(raw).expanduser() if raw else DEFAULT_PASSPHRASE_PATH
+
+
+def passphrase_store() -> PassphraseStore:
+    return PassphraseStore(resolve_passphrase_path())
+
+
 def resolve_privacy() -> KeyResolution:
+    """Legacy resolver used by the CLI dev harness and tests (env-var path).
+
+    The GUI uses the passphrase flow (see gui/app.py) and does not call this.
+    """
     raw = os.environ.get("ASTRANOTES_KEY")
     if raw:
         return KeyResolution(PrivacyService(raw.encode("utf-8")), "ASTRANOTES_KEY", False)
