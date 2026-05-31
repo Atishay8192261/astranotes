@@ -7,7 +7,7 @@ AstraNotes is a secure, modular, local-first note-taking application built in Py
 **Student:** Atishay Jain
 **Technical Path:** Python
 **Quarter:** Spring 2026 (Weeks 1-11, March 30 - June 8)
-**Current Status:** Week 8.1 (3-tier GUI in place; US-06 keyword search merged via PR #1. 46 tests passing.)
+**Current Status:** Week 9 (project complete: FR-01..FR-08 realized; ADR-005 resolved with PBKDF2 master passphrase; UI polished; 12-note seed for demos; 78 tests passing, 5 CLI quarantined.)
 
 ## Architecture
 
@@ -209,6 +209,8 @@ These come from the Working Agreement (Week 2.1) and Definition of Done (Week 2.
 | 7.2 | Testing Strategy + first test set (40 tests passing) | Done |
 | 7.2 | 3-tier GUI pivot to CustomTkinter (ADR-006); UML/docs updated | Done |
 | 8.1 | Collaborative Git workflow: US-06/FR-07 keyword search merged via PR #1 (46 tests passing) | Done |
+| 9.1 | Test improvement log (gap #4 brittle SPR-01 assertion replaced); 14-gap audit closed in PR #2; FR-02 edit, FR-03 delete-via-manager, FR-04 toggle landed | Done |
+| 9.1 | ADR-005 resolved: master passphrase + PBKDF2 (PR #3); GUI polish + 12-note demo seed (PR #4) | Done |
 
 ## Upcoming Class Milestones
 
