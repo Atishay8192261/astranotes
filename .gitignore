@@ -19,5 +19,7 @@ demo-data/
 # Encryption keys (NEVER commit)
 *.key
 
-# Machine-local Claude Code settings
-.claude/settings.local.json
+# Editor / IDE local settings
+.claude/
+.vscode/
+.idea/
