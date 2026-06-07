@@ -34,5 +34,12 @@ dev = [
 include = ["astranotes*"]
 exclude = ["tests*", "planning*", "submissions*", "docs*"]
 
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+ignore = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

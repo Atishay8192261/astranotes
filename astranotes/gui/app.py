@@ -110,6 +110,7 @@ class AstraNotesApp(ctk.CTk):
 
     def _raise_to_front(self) -> None:
         import os, subprocess, sys
+        self.deiconify()
         self.lift()
         self.focus_force()
         self.attributes("-topmost", True)

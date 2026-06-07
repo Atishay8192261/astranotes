@@ -88,4 +88,4 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff lint
-        run: ruff check astranotes/ tests/ --select E,W,F,I
+        run: ruff check astranotes/ tests/
