@@ -104,6 +104,17 @@ class AstraNotesApp(ctk.CTk):
         self.refresh_notes_list()
         self._event_log.log("app_started", "AstraNotes launched")
 
+        # macOS: shell-script .app launchers don't auto-foreground the window.
+        # Temporarily set topmost, then release — reliably brings window to front.
+        self.after(100, self._raise_to_front)
+
+    def _raise_to_front(self) -> None:
+        """Bring window to front — needed when launched from a .app shell script."""
+        self.lift()
+        self.focus_force()
+        self.attributes("-topmost", True)
+        self.after(500, lambda: self.attributes("-topmost", False))
+
     # ── HEADER ─────────────────────────────────────────────────────────────────
 
     def _build_header(self) -> None:
