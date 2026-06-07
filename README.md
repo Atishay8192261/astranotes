@@ -23,18 +23,25 @@ repositories/   NoteRepository (ABC)  ·  JsonFileRepository
 
 The view holds no business logic, the logic tier holds no widgets, and the
 repository interface means the storage backend can change without touching
-the services. The 78 unit tests run headlessly (no Tk required) by exercising
+the services. The 95 unit tests run headlessly (no Tk required) by exercising
 the controller and services directly.
 
 ## Features
 
-- Create / edit / delete notes (UUID, UTC timestamps, free-form tags).
-- Mark any note as private — body is Fernet-encrypted at rest.
-- Toggle private ↔ public on an existing note; failed decryption leaves the
-  note encrypted rather than silently corrupting it.
+- Create / edit / delete / **duplicate** notes (UUID, UTC timestamps, tags).
+- **Master vault**: a single passphrase unlocks every secured note. Change the
+  passphrase in-app (rotation requires proving you know the current one).
+- Mark any note as private — body is Fernet-encrypted at rest. Toggle
+  private ↔ public; failed decryption leaves the note encrypted rather than
+  silently corrupting it.
+- **Apple Notes-style sidebar**: slim rows grouped by date (Today / Yesterday /
+  Previous 7 Days / …) with a dedicated **Secured** section and "Unlock All".
 - Case-insensitive keyword search across titles and bodies; private notes are
   decrypted before matching, and notes that fail to decrypt are skipped.
-- Sorted by `modified_at` descending (ties broken by `created_at`).
+- **Keyboard shortcuts** (⌘/Ctrl + N / S / F), live word & character count,
+  and an unsaved-changes indicator.
+- **System panel**: live telemetry (note counts, storage used, encryption
+  status). Every UI action is logged to `~/.astranotes/events.log`.
 - Auto-creates the data directory on first launch; skips corrupt JSON files
   on startup with an error logged.
 
@@ -89,6 +96,19 @@ pytest -q
 95 tests; 5 legacy CLI tests are quarantined behind `--run-cli`. All tests
 are headless and use only `tmp_path` fixtures + real services (no mocked
 storage in security-critical paths).
+
+## Documentation
+
+Full SDLC artifacts live under [`docs/`](docs/):
+
+| Area | Files |
+|------|-------|
+| Requirements | [`PRD.md`](docs/requirements/PRD.md) (functional + non-functional + security reqs) |
+| Traceability | [`traceability-matrix.md`](docs/requirements/traceability-matrix.md) (every requirement → UML → test) |
+| UML | [class](docs/uml/class-diagram.md) · [object](docs/uml/object-diagram.md) · [use-case](docs/uml/use-case-diagram.md) · [activity](docs/uml/activity-diagram.md) · [deployment](docs/uml/deployment-diagram.md) |
+| Testing | [`tdd-log.md`](docs/testing/tdd-log.md) (Red-Green-Refactor) · [`bdd-acceptance-criteria.md`](docs/testing/bdd-acceptance-criteria.md) (Gherkin) |
+| AI use | [`prompt-log.md`](docs/ai-log/prompt-log.md) (architectural decisions made with AI + human oversight) |
+| Operations | [`RUNBOOK.md`](RUNBOOK.md) (deploy / run / troubleshoot) |
 
 ## Configuration
 
