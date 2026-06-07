@@ -40,6 +40,9 @@ class NotesController:
         """Inject a passphrase-derived PrivacyService after launch (ADR-005)."""
         self._manager._privacy = privacy
 
+    def reset_vault(self, privacy: PrivacyService) -> None:
+        self._manager.rotate_privacy(privacy)
+
     def list_notes(self) -> list[Note]:
         try:
             return self._manager.list_notes()

@@ -4,9 +4,10 @@ Design language:
   • Warm off-white background (#F8F7F5) — not harsh pure-white
   • Violet (#7856FF) accent — stands out vs default CTk blue every other student uses
   • Card-based glass panels — subtle borders + inner shadow simulation
-  • Body preview in sidebar — much more useful than title-only lists
+    • Compact table-style sidebar — slimmer rows, easier scanning
   • Tag pills — inline coloured chips
-  • Dynamic button states — Delete/Duplicate disabled until selection
+    • Master vault modal — unlock/reset secured notes inside the running app
+    • Dynamic button states — Delete/Duplicate disabled until selection
 
 Strict tier separation maintained: zero business logic or file I/O in this file.
 """
@@ -14,7 +15,7 @@ Strict tier separation maintained: zero business logic or file I/O in this file.
 from __future__ import annotations
 
 import os
-import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import customtkinter as ctk
@@ -97,19 +98,34 @@ class AstraNotesApp(ctk.CTk):
             except Exception:
                 pass
 
+        self._dirty = False
+
         self._build_header()
         self._build_sidebar()
         self._build_editor()
         self._build_statusbar()
         self.refresh_notes_list()
+        self._bind_shortcuts()
         self._event_log.log("app_started", "AstraNotes launched")
 
         # macOS: shell-script .app launchers don't auto-foreground the window.
         # Temporarily set topmost, then release — reliably brings window to front.
         self.after(100, self._raise_to_front)
 
+    def _bind_shortcuts(self) -> None:
+        """Standard note-app keyboard shortcuts (mac ⌘ + Windows/Linux Ctrl)."""
+        for seq in ("<Command-n>", "<Control-n>"):
+            self.bind_all(seq, lambda _e: self._new_note())
+        for seq in ("<Command-s>", "<Control-s>"):
+            self.bind_all(seq, lambda _e: self._save_note())
+        for seq in ("<Command-f>", "<Control-f>"):
+            self.bind_all(seq, lambda _e: (self._search_entry.focus_set(), "break")[1])
+
     def _raise_to_front(self) -> None:
-        import os, subprocess, sys
+        import os
+        import subprocess
+        import sys
+
         self.deiconify()
         self.lift()
         self.focus_force()
@@ -165,6 +181,7 @@ class AstraNotesApp(ctk.CTk):
 
         for label, cmd, is_accent in (
             ("System",   self._open_admin,    False),
+            ("Vault",    self._open_vault,    False),
             ("Settings", self._open_settings, False),
             ("About",    self._open_about,    False),
             ("Theme",    self._toggle_theme,  False),
@@ -187,7 +204,7 @@ class AstraNotesApp(ctk.CTk):
     # ── SIDEBAR ─────────────────────────────────────────────────────────────────
 
     def _build_sidebar(self) -> None:
-        sidebar_wrap = ctk.CTkFrame(self, width=320, fg_color=_SIDEBAR, corner_radius=0)
+        sidebar_wrap = ctk.CTkFrame(self, width=268, fg_color=_SIDEBAR, corner_radius=0)
         sidebar_wrap.grid(row=1, column=0, sticky="nsew")
         sidebar_wrap.grid_propagate(False)
         sidebar_wrap.grid_rowconfigure(2, weight=1)
@@ -200,14 +217,14 @@ class AstraNotesApp(ctk.CTk):
         self._search_entry = ctk.CTkEntry(
             search_frame,
             placeholder_text="🔍  Search notes…",
-            height=40,
-            corner_radius=12,
+            height=34,
+            corner_radius=10,
             border_width=1,
             border_color=_BORDER,
             fg_color=_PANEL,
             text_color=_TXT1,
             placeholder_text_color=_TXT3,
-            font=ctk.CTkFont(size=13),
+            font=ctk.CTkFont(size=12),
         )
         self._search_entry.grid(row=0, column=0, sticky="ew")
         self._search_entry.bind("<KeyRelease>", lambda _e: self._on_search())
@@ -339,6 +356,10 @@ class AstraNotesApp(ctk.CTk):
         )
         self._body_box.grid(row=4, column=0, sticky="nsew", padx=24, pady=(0, 10))
 
+        for _w in (self._title_entry, self._tags_entry):
+            _w.bind("<KeyRelease>", self._on_editor_edit)
+        self._body_box.bind("<KeyRelease>", self._on_editor_edit)
+
         # ── Action buttons ────────────────────────────────────────────────
         btn_row = ctk.CTkFrame(editor, fg_color="transparent")
         btn_row.grid(row=5, column=0, sticky="ew", padx=24, pady=(0, 20))
@@ -432,12 +453,21 @@ class AstraNotesApp(ctk.CTk):
 
         self._status = ctk.CTkLabel(
             bar,
-            text="Ready",
+            text="Ready  ·  ⌘N new · ⌘S save · ⌘F search",
             anchor="w",
             font=ctk.CTkFont(size=11),
             text_color=_TXT2,
         )
         self._status.grid(row=0, column=0, sticky="w", padx=16, pady=4)
+
+        self._count_label = ctk.CTkLabel(
+            bar,
+            text="0 words · 0 chars",
+            anchor="e",
+            font=ctk.CTkFont(size=11),
+            text_color=_TXT3,
+        )
+        self._count_label.grid(row=0, column=1, sticky="e", padx=(0, 16), pady=4)
 
         self._key_indicator = ctk.CTkLabel(
             bar,
@@ -446,7 +476,7 @@ class AstraNotesApp(ctk.CTk):
             font=ctk.CTkFont(size=11),
             text_color=_TXT3,
         )
-        self._key_indicator.grid(row=0, column=1, sticky="e", padx=16, pady=4)
+        self._key_indicator.grid(row=0, column=2, sticky="e", padx=16, pady=4)
 
     # ── BUTTON STATE MANAGEMENT ────────────────────────────────────────────────
 
@@ -483,6 +513,23 @@ class AstraNotesApp(ctk.CTk):
             self._event_log.log("search", f"keyword={kw!r}")
         self.refresh_notes_list()
 
+    @staticmethod
+    def _date_group(dt: datetime) -> str:
+        """Apple Notes-style date bucket label for a note's modified date."""
+        now = datetime.now(timezone.utc)
+        delta = (now.date() - dt.date()).days
+        if delta <= 0:
+            return "Today"
+        if delta == 1:
+            return "Yesterday"
+        if delta <= 7:
+            return "Previous 7 Days"
+        if delta <= 30:
+            return "Previous 30 Days"
+        if dt.year == now.year:
+            return dt.strftime("%B")
+        return dt.strftime("%B %Y")
+
     def refresh_notes_list(self) -> None:
         for child in self._sidebar.winfo_children():
             child.destroy()
@@ -497,8 +544,7 @@ class AstraNotesApp(ctk.CTk):
         # Update header label + badge
         count = len(notes)
         if hasattr(self, "_sidebar_header"):
-            label = "MATCHES" if kw else "NOTES"
-            self._sidebar_header.configure(text=label)
+            self._sidebar_header.configure(text="MATCHES" if kw else "NOTES")
         if hasattr(self, "_note_count_badge"):
             self._note_count_badge.configure(text=str(count))
 
@@ -508,73 +554,137 @@ class AstraNotesApp(ctk.CTk):
                 self._sidebar,
                 text=placeholder,
                 text_color=_TXT3,
-                font=ctk.CTkFont(size=13),
+                font=ctk.CTkFont(size=12),
                 justify="center",
             ).pack(pady=40, padx=14)
             return
 
-        for note in notes:
+        # Search results render flat (no grouping), like Apple Notes search.
+        if kw:
+            for note in notes:
+                self._render_sidebar_item(note)
+            self._scroll_to_top()
+            return
+
+        secured = [n for n in notes if n.is_private]
+        public = [n for n in notes if not n.is_private]
+        public.sort(key=lambda n: n.modified_at, reverse=True)
+
+        # ── Secured section (one master key unlocks all) ──────────────────
+        if secured:
+            self._render_secured_header(len(secured))
+            for note in secured:
+                self._render_sidebar_item(note)
+
+        # ── Public notes, grouped by date ─────────────────────────────────
+        current_group: str | None = None
+        for note in public:
+            group = self._date_group(note.modified_at)
+            if group != current_group:
+                self._render_section_header(group.upper())
+                current_group = group
             self._render_sidebar_item(note)
 
+        self._scroll_to_top()
+
+    def _scroll_to_top(self) -> None:
+        if hasattr(self._sidebar, "_parent_canvas"):
+            self._sidebar._parent_canvas.yview_moveto(0)
+
+    def _render_section_header(self, text: str) -> None:
+        """Slim uppercase date-group divider."""
+        ctk.CTkLabel(
+            self._sidebar,
+            text=text,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=_TXT3,
+            anchor="w",
+        ).pack(fill="x", padx=10, pady=(12, 2))
+
+    def _render_secured_header(self, count: int) -> None:
+        """Secured-notes section header with an inline Unlock All control."""
+        locked = not self._controller.has_privacy_key
+        bar = ctk.CTkFrame(self._sidebar, fg_color="transparent")
+        bar.pack(fill="x", padx=10, pady=(8, 2))
+        bar.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            bar,
+            text=f"{'🔒' if locked else '🔓'}  SECURED  ·  {count}",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=(_WARN, "#C9A84C") if locked else _TXT3,
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w")
+
+        if locked:
+            ctk.CTkButton(
+                bar,
+                text="Unlock All",
+                width=74,
+                height=22,
+                corner_radius=11,
+                fg_color=(_ACCENT, _ACCENT),
+                hover_color=(_ACCENT_H, _ACCENT_H),
+                text_color="#FFFFFF",
+                font=ctk.CTkFont(size=10, weight="bold"),
+                command=lambda: (self._unlock_vault(self), self.refresh_notes_list()),
+            ).grid(row=0, column=1, sticky="e")
+
     def _render_sidebar_item(self, note: Note) -> None:
-        """Notion-style compact single-row list item."""
+        """Slim Apple Notes-style row: title line + 'date · preview' line."""
         is_locked   = note.is_private and not self._controller.has_privacy_key
         is_selected = self._selected is not None and self._selected.id == note.id
 
-        # Row background — selected gets a soft violet tint, otherwise transparent
-        if is_selected:
-            row_bg = ("#EEEAFF", "#2D2550")
-        elif is_locked:
-            row_bg = ("#FFF8EE", "#2A1F0F")
-        else:
-            row_bg = "transparent"
-
         row = ctk.CTkFrame(
             self._sidebar,
-            fg_color=row_bg,
+            fg_color=_SELECTED if is_selected else "transparent",
             corner_radius=6,
             cursor="hand2",
         )
-        row.pack(fill="x", padx=2, pady=1)
-        row.grid_columnconfigure(1, weight=1)
+        row.pack(fill="x", padx=4, pady=1)
+        row.grid_columnconfigure(0, weight=1)
 
-        # Left accent dot (2 px wide, full height)
-        dot_color = (
-            _WARN if is_locked
-            else (_ACCENT if note.is_private else "transparent")
-        )
-        ctk.CTkFrame(row, width=2, corner_radius=1, fg_color=dot_color).grid(
-            row=0, column=0, sticky="ns", padx=(4, 0), pady=5
-        )
-
-        # Title — single line, truncated
-        icon = "🔒 " if is_locked else ("🔐 " if note.is_private else "")
-        title_text  = icon + (note.title or "(untitled)")
+        title_text  = note.title or "(untitled)"
         title_color = (_WARN, "#C9A84C") if is_locked else _TXT1
-        title_font  = ctk.CTkFont(size=13, weight="bold" if is_selected else "normal")
+        lock_glyph  = "🔒 " if is_locked else ("• " if note.is_private else "")
 
         title_lbl = ctk.CTkLabel(
             row,
-            text=_truncate(title_text, 32),
-            font=title_font,
+            text=lock_glyph + _truncate(title_text, 28),
+            font=ctk.CTkFont(size=13, weight="bold" if is_selected else "normal"),
             text_color=title_color,
             anchor="w",
         )
-        title_lbl.grid(row=0, column=1, sticky="w", padx=(8, 4), pady=(6, 6))
+        title_lbl.grid(row=0, column=0, sticky="ew", padx=10, pady=(6, 0))
 
-        # Date — right-aligned, muted
+        # Second line: date + preview (two muted labels side by side)
+        meta = ctk.CTkFrame(row, fg_color="transparent")
+        meta.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 6))
+
         date_lbl = ctk.CTkLabel(
-            row,
+            meta,
             text=f"{note.modified_at:%b %d}",
-            font=ctk.CTkFont(size=10),
-            text_color=_TXT3,
-            anchor="e",
-            width=42,
+            font=ctk.CTkFont(size=11),
+            text_color=_TXT2,
+            anchor="w",
         )
-        date_lbl.grid(row=0, column=2, sticky="e", padx=(0, 8), pady=6)
+        date_lbl.pack(side="left")
 
-        # Click binding
-        for widget in (row, title_lbl, date_lbl):
+        preview_text = (
+            "Locked"
+            if is_locked
+            else _truncate((note.body or "").replace("\n", " ").strip(), 30) or "No content"
+        )
+        preview_lbl = ctk.CTkLabel(
+            meta,
+            text="   " + preview_text,
+            font=ctk.CTkFont(size=11),
+            text_color=(_WARN, "#C9A84C") if is_locked else _TXT3,
+            anchor="w",
+        )
+        preview_lbl.pack(side="left")
+
+        for widget in (row, title_lbl, meta, date_lbl, preview_lbl):
             widget.bind(
                 "<Button-1>",
                 lambda _e, n=note, lk=is_locked: self._select_note(n, lk),
@@ -612,6 +722,7 @@ class AstraNotesApp(ctk.CTk):
         self._body_box.insert("1.0", note.body)
         (self._private_switch.select if note.is_private else self._private_switch.deselect)()
         self._update_button_states()
+        self._clear_dirty()
         self._set_status(f"Editing  '{note.title}'")
         self.refresh_notes_list()
 
@@ -626,6 +737,7 @@ class AstraNotesApp(ctk.CTk):
         self._body_box.delete("1.0", "end")
         self._private_switch.deselect()
         self._update_button_states()
+        self._clear_dirty()
         self._set_status("New note — fill in the fields and click Save")
         self.refresh_notes_list()
 
@@ -754,7 +866,7 @@ class AstraNotesApp(ctk.CTk):
         self._event_log.log("settings_opened", "")
         win = ctk.CTkToplevel(self)
         win.title("Settings — AstraNotes")
-        win.geometry("500x300")
+        win.geometry("520x360")
         win.resizable(False, False)
         win.transient(self)
         win.configure(fg_color=_BG)
@@ -775,6 +887,49 @@ class AstraNotesApp(ctk.CTk):
                          text_color=_TXT2, width=130, anchor="w").pack(side="left")
             ctk.CTkLabel(row, text=val, font=ctk.CTkFont(size=12),
                          text_color=_TXT1, anchor="w", wraplength=280).pack(side="left")
+
+        vault_card = ctk.CTkFrame(win, fg_color=_PANEL, corner_radius=12, border_width=1, border_color=_BORDER)
+        vault_card.pack(fill="x", padx=24, pady=(0, 12))
+        ctk.CTkLabel(
+            vault_card,
+            text="Master Vault",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=_TXT3,
+            anchor="w",
+        ).pack(anchor="w", padx=16, pady=(14, 6))
+        ctk.CTkLabel(
+            vault_card,
+            text=self._key_label(),
+            font=ctk.CTkFont(size=12),
+            text_color=_TXT1,
+            anchor="w",
+        ).pack(anchor="w", padx=16, pady=(0, 10))
+        btns = ctk.CTkFrame(vault_card, fg_color="transparent")
+        btns.pack(fill="x", padx=16, pady=(0, 16))
+        ctk.CTkButton(
+            btns,
+            text="Unlock Vault",
+            width=130,
+            height=34,
+            corner_radius=17,
+            fg_color=(_ACCENT, _ACCENT),
+            hover_color=(_ACCENT_H, _ACCENT_H),
+            text_color="#FFFFFF",
+            command=lambda: self._unlock_vault(win),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btns,
+            text="Reset Passphrase",
+            width=150,
+            height=34,
+            corner_radius=17,
+            fg_color="transparent",
+            hover_color=_ACCENT_LT,
+            border_width=1,
+            border_color=_BORDER,
+            text_color=_TXT1,
+            command=lambda: self._reset_vault_passphrase(win),
+        ).pack(side="left")
 
         ctk.CTkButton(win, text="Close", width=100, height=36, corner_radius=18,
                       fg_color=(_ACCENT, _ACCENT), hover_color=(_ACCENT_H, _ACCENT_H),
@@ -804,7 +959,7 @@ class AstraNotesApp(ctk.CTk):
             ("Architecture",  "3-tier MVC  ·  View → Controller → Model"),
             ("Encryption",    "Fernet (AES-128-CBC + HMAC-SHA256)"),
             ("Key derivation","PBKDF2-HMAC-SHA256  ·  600 000 iterations"),
-            ("Tests",         "92 passing  ·  14 BDD Gherkin scenarios"),
+            ("Tests",         "95 passing  ·  14 BDD Gherkin scenarios"),
             ("Course",        "CSEN 296B-2  ·  Spring 2026  ·  SCU"),
         ]
         for lbl, val in specs:
@@ -827,47 +982,115 @@ class AstraNotesApp(ctk.CTk):
         ctk.set_appearance_mode(mode)
         self._event_log.log("theme_toggled", mode)
 
+    def _open_vault(self) -> None:
+        self._open_settings()
+
+    def _unlock_vault(self, parent: ctk.CTk | None = None) -> bool:
+        store = passphrase_store()
+        if not store.exists():
+            value = prompt_setup(parent or self)
+            if value is None:
+                return False
+            try:
+                privacy, record = store.prepare(value)
+                self._controller.set_privacy_service(privacy)
+                store.write_record(record)
+                self._key_source = "master vault (PBKDF2)"
+                self._event_log.log("vault_initialized", "master vault created")
+                self.refresh_notes_list()
+                self._set_status("Master vault created")
+                return True
+            except (PersistenceError, ValidationError) as exc:
+                self._set_status(str(exc))
+                return False
+
+        for _ in range(3):
+            value = prompt_unlock(parent or self)
+            if value is None:
+                return False
+            try:
+                self._controller.set_privacy_service(store.unlock(value))
+                self._key_source = "master vault (PBKDF2)"
+                self._event_log.log("vault_unlocked", "success")
+                self.refresh_notes_list()
+                self._set_status("Master vault unlocked")
+                return True
+            except PersistenceError:
+                continue
+
+        self._event_log.log("vault_failed", "too many attempts")
+        self._set_status("Unable to unlock master vault")
+        return False
+
+    def _reset_vault_passphrase(self, parent: ctk.CTk | None = None) -> None:
+        store = passphrase_store()
+        owner = parent or self
+
+        # A passphrase change is only allowed if the user proves they know the
+        # current one — verify the existing passphrase before accepting a new one.
+        if store.exists():
+            for _ in range(3):
+                current = prompt_unlock(owner)
+                if current is None:
+                    return
+                try:
+                    self._controller.set_privacy_service(store.unlock(current))
+                    break
+                except PersistenceError:
+                    self._set_status("Incorrect current passphrase")
+            else:
+                self._event_log.log("vault_reset_denied", "current passphrase not verified")
+                self._set_status("Passphrase change denied — current passphrase required")
+                return
+
+        value = prompt_setup(owner)
+        if value is None:
+            return
+        try:
+            new_privacy, record = store.prepare(value)
+            self._controller.reset_vault(new_privacy)
+            store.write_record(record)
+            self._key_source = "master vault (PBKDF2)"
+            self._event_log.log("vault_reset", "passphrase rotated")
+            self.refresh_notes_list()
+            self._set_status("Master vault passphrase reset")
+        except (PersistenceError, ValidationError) as exc:
+            self._set_status(str(exc))
+
     # ── STATUS BAR HELPERS ────────────────────────────────────────────────────
 
     def _key_label(self) -> str:
-        return "🔓 unlocked" if self._controller.has_privacy_key else "🔒 no passphrase set"
+        return "🔓 master vault unlocked" if self._controller.has_privacy_key else "🔒 master vault locked"
 
     def _set_status(self, text: str) -> None:
         self._status.configure(text=text)
         if hasattr(self, "_key_indicator"):
             self._key_indicator.configure(text=self._key_label())
 
+    # ── LIVE WORD COUNT + UNSAVED INDICATOR ────────────────────────────────────
+
+    def _on_editor_edit(self, _event=None) -> None:
+        self._update_word_count()
+        if not self._dirty:
+            self._dirty = True
+            self._status.configure(text="● Unsaved changes")
+
+    def _update_word_count(self) -> None:
+        if not hasattr(self, "_count_label"):
+            return
+        body = self._body_box.get("1.0", "end").strip()
+        words = len(body.split()) if body else 0
+        chars = len(body)
+        self._count_label.configure(text=f"{words} words · {chars} chars")
+
+    def _clear_dirty(self) -> None:
+        self._dirty = False
+        self._update_word_count()
+
     # ── LAZY PASSPHRASE HANDLING ──────────────────────────────────────────────
 
     def _ensure_passphrase(self) -> bool:
-        store = passphrase_store()
-        if store.exists():
-            for _ in range(3):
-                value = prompt_unlock(self)
-                if value is None:
-                    return False
-                try:
-                    self._controller.set_privacy_service(store.unlock(value))
-                    self._key_source = "passphrase (PBKDF2)"
-                    self._event_log.log("passphrase_unlocked", "success")
-                    self.refresh_notes_list()
-                    return True
-                except PersistenceError:
-                    continue
-            self._event_log.log("passphrase_failed", "too many attempts")
-            return False
-
-        value = prompt_setup(self)
-        if value is None:
-            return False
-        try:
-            self._controller.set_privacy_service(store.initialize(value))
-            self._key_source = "passphrase (PBKDF2)"
-            self._event_log.log("passphrase_setup", "new passphrase configured")
-            return True
-        except (PersistenceError, ValidationError) as exc:
-            self._set_status(str(exc))
-            return False
+        return self._unlock_vault(self)
 
 
 # ── entry point ────────────────────────────────────────────────────────────────
@@ -875,32 +1098,6 @@ class AstraNotesApp(ctk.CTk):
 def main() -> None:
     if os.environ.get("ASTRANOTES_KEY"):
         controller, key_source = build_default_controller()
-        AstraNotesApp(controller, key_source).mainloop()
-        return
-
-    store = passphrase_store()
-    if store.exists():
-        bootstrap = ctk.CTk()
-        bootstrap.withdraw()
-        privacy = None
-        for _ in range(3):
-            value = prompt_unlock(bootstrap)
-            if value is None:
-                bootstrap.destroy()
-                print("Unlock cancelled.", file=sys.stderr)
-                return
-            try:
-                privacy = store.unlock(value)
-                break
-            except PersistenceError:
-                continue
-        bootstrap.destroy()
-        if privacy is None:
-            print("Too many failed attempts.", file=sys.stderr)
-            return
-        controller, key_source = build_default_controller(
-            privacy=privacy, key_source="passphrase (PBKDF2)"
-        )
         AstraNotesApp(controller, key_source).mainloop()
         return
 

@@ -23,6 +23,13 @@ def test_initialize_then_unlock_round_trip(store: PassphraseStore) -> None:
     assert again.decrypt(ciphertext) == "hello"
 
 
+def test_prepare_returns_matching_privacy_and_record(store: PassphraseStore) -> None:
+    privacy, record = store.prepare("correct horse battery staple")
+    assert privacy.decrypt(privacy.encrypt("hello")) == "hello"
+    assert record.salt_b64
+    assert record.verifier_b64
+
+
 def test_unlock_with_wrong_passphrase_raises(store: PassphraseStore) -> None:
     store.initialize("correct horse battery staple")
     with pytest.raises(PersistenceError):

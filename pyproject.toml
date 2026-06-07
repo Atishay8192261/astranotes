@@ -30,6 +30,9 @@ dev = [
     "bandit[toml]>=1.7",
 ]
 
+[project.scripts]
+astranotes = "astranotes.__main__:main"
+
 [tool.setuptools.packages.find]
 include = ["astranotes*"]
 exclude = ["tests*", "planning*", "submissions*", "docs*"]

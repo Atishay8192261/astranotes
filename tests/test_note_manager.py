@@ -100,6 +100,27 @@ def test_list_notes_skips_undecryptable_private_note(tmp_path: Path) -> None:
     assert "locked" not in titles
 
 
+def test_rotate_privacy_reencrypts_private_notes(tmp_path: Path) -> None:
+    old_privacy = PrivacyService(PrivacyService.generate_key())
+    manager = NoteManager(
+        repository=JsonFileRepository(tmp_path),
+        validation=ValidationLayer(),
+        privacy=old_privacy,
+    )
+    manager.create_note(title="locked", body="secret body", is_private=True)
+
+    new_privacy = PrivacyService(PrivacyService.generate_key())
+    manager.rotate_privacy(new_privacy)
+
+    rotated = NoteManager(
+        repository=JsonFileRepository(tmp_path),
+        validation=ValidationLayer(),
+        privacy=new_privacy,
+    )
+    notes = rotated.list_notes()
+    assert [n.body for n in notes] == ["secret body"]
+
+
 def test_list_notes_sorted_by_modified_desc(manager: NoteManager) -> None:
     manager.create_note(title="first", body="a")
     time.sleep(0.01)
@@ -371,6 +392,6 @@ def test_list_and_search_500_notes_within_2s(manager: NoteManager) -> None:
 def test_duplicate_tags_are_preserved_by_design(manager: NoteManager) -> None:
     """Refined-reqs: 'duplicate tags allowed, known limitation'.
     Pin the behavior so a future dedupe slip is caught."""
-    note = manager.create_note(title="t", body="b", tags=["work", "work", "urgent"])
+    manager.create_note(title="t", body="b", tags=["work", "work", "urgent"])
     loaded = manager.list_notes()[0]
     assert loaded.tags == ["work", "work", "urgent"]

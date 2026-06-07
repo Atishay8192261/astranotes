@@ -61,16 +61,24 @@ class PassphraseStore:
         self._validate_passphrase(passphrase)
         if self.exists():
             raise PersistenceError("Passphrase already initialized")
+        privacy, record = self.prepare(passphrase)
+        self._write(record)
+        return privacy
+
+    def prepare(self, passphrase: str) -> tuple[PrivacyService, PassphraseRecord]:
+        """Derive a fresh vault key and matching record without writing it."""
+        self._validate_passphrase(passphrase)
         salt = secrets.token_bytes(SALT_BYTES)
         key = _derive_key(passphrase, salt)
         verifier = Fernet(key).encrypt(VERIFIER_PLAINTEXT.encode("utf-8"))
-        self._write(
-            PassphraseRecord(
-                salt_b64=base64.b64encode(salt).decode("ascii"),
-                verifier_b64=verifier.decode("ascii"),
-            )
+        record = PassphraseRecord(
+            salt_b64=base64.b64encode(salt).decode("ascii"),
+            verifier_b64=verifier.decode("ascii"),
         )
-        return PrivacyService(key)
+        return PrivacyService(key), record
+
+    def write_record(self, record: PassphraseRecord) -> None:
+        self._write(record)
 
     def unlock(self, passphrase: str) -> PrivacyService:
         """Verify the passphrase against the stored verifier; return the service."""

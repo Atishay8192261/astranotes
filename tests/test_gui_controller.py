@@ -108,3 +108,17 @@ def test_delete_routes_through_manager_not_repository(controller: NotesControlle
     from uuid import uuid4
     result = controller.delete_note(uuid4())
     assert not result.ok
+
+
+def test_reset_vault_rotates_private_note_encryption(controller: NotesController) -> None:
+    controller.create_note("secret", "hidden", is_private=True)
+    old_note = controller.list_notes()[0]
+    old_bytes = controller._manager._repository.get(old_note.id).body
+
+    new_privacy = PrivacyService(PrivacyService.generate_key())
+    controller.reset_vault(new_privacy)
+
+    loaded = controller.list_notes()[0]
+    assert loaded.body == "hidden"
+    new_bytes = controller._manager._repository.get(loaded.id).body
+    assert new_bytes != old_bytes

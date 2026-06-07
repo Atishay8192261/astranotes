@@ -11,7 +11,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from pytest_bdd import given, parsers, scenario, scenarios, then, when
+from pytest_bdd import given, parsers, scenarios, then, when
 
 from astranotes.models.exceptions import NoteNotFoundError, PersistenceError, ValidationError
 from astranotes.repositories.json_file import JsonFileRepository

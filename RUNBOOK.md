@@ -40,6 +40,10 @@ pip install -e ".[dev]"
 
 ```bash
 source venv/bin/activate
+astranotes
+
+# or
+
 python -m astranotes
 ```
 
@@ -49,7 +53,7 @@ Or double-click **AstraNotes.app** on your Desktop (macOS, no terminal needed).
 
 - No passphrase configured → app opens unlocked.
 - First time you save a private note → passphrase setup dialog appears.
-- Subsequent launches → passphrase unlock dialog appears if `~/.astranotes/passphrase.json` exists.
+- Subsequent launches → app still opens normally; private notes stay locked until you click one or try to save one.
 
 ---
 
@@ -84,7 +88,7 @@ pytest tests/bdd/ -v
 pytest -q --run-cli
 ```
 
-Expected: **92 passed, 5 skipped** (CLI tests quarantined; pass `--run-cli` to include).
+Expected: **95 passed, 5 skipped** (CLI tests quarantined; pass `--run-cli` to include).
 
 ---
 

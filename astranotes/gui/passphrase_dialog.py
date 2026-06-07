@@ -52,6 +52,14 @@ class _PassphraseDialog(ctk.CTkToplevel):
         self.bind("<Return>", lambda _e: self._submit())
         self.bind("<Escape>", lambda _e: self._cancel())
         self.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.after(0, self._raise_to_front)
+
+    def _raise_to_front(self) -> None:
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+        self.attributes("-topmost", True)
+        self.after(400, lambda: self.attributes("-topmost", False))
 
     def _submit(self) -> None:
         value = self._entry.get()
@@ -81,9 +89,9 @@ def prompt_unlock(parent: ctk.CTk) -> Optional[str]:
     """Ask the user to type their existing passphrase."""
     return _PassphraseDialog(
         parent,
-        title="Unlock AstraNotes",
+        title="Unlock Master Vault",
         prompt=(
-            "Enter your passphrase to unlock your private notes.\n"
+            "Enter your master vault passphrase to unlock secured notes.\n"
             "This passphrase derives the encryption key in memory only;\n"
             "it is never stored on disk."
         ),
@@ -94,9 +102,9 @@ def prompt_setup(parent: ctk.CTk) -> Optional[str]:
     """Ask the user to set a new passphrase (with confirm)."""
     return _PassphraseDialog(
         parent,
-        title="Set passphrase",
+        title="Set Master Vault Passphrase",
         prompt=(
-            "Choose a passphrase for your private notes. The encryption key\n"
+            "Choose a master vault passphrase for secured notes. The encryption key\n"
             "is derived from this passphrase via PBKDF2 (600k iterations) and\n"
             "kept only in memory. If you forget it, your private notes\n"
             "cannot be recovered (no backdoor, by design)."

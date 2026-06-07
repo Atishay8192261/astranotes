@@ -147,6 +147,31 @@ class NoteManager:
         self._repository.update(updated)
         return replace(updated, body=plaintext)
 
+    def rotate_privacy(self, new_privacy: PrivacyService) -> None:
+        """Re-encrypt every private note with a new vault key.
+
+        The current privacy key must be loaded so the manager can decrypt the
+        existing private notes first. Public notes are left untouched.
+        """
+        self._require_privacy()
+
+        private_notes: list[tuple[Note, str]] = []
+        for stored in self._repository.list_all():
+            if not stored.is_private:
+                continue
+            plaintext = self._privacy.decrypt(stored.body)
+            private_notes.append((stored, plaintext))
+
+        for stored, plaintext in private_notes:
+            updated = replace(
+                stored,
+                body=new_privacy.encrypt(plaintext),
+                modified_at=datetime.now(timezone.utc),
+            )
+            self._repository.update(updated)
+
+        self._privacy = new_privacy
+
     def _load_stored(self, note_id: UUID) -> Note:
         try:
             return self._repository.get(note_id)

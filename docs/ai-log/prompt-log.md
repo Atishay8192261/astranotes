@@ -1,7 +1,7 @@
 # AI Interaction Log — AstraNotes
 
 Records the major architectural decisions, technology stack choices, and
-design tradeoffs made with AI assistance (Claude Code / Claude Sonnet).
+design tradeoffs made with AI assistance (an AI pair-programming assistant).
 Only architectural decision points are logged here — routine coding prompts
 are omitted per the course guidance.
 

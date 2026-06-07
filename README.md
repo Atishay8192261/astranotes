@@ -55,6 +55,10 @@ brew install python-tk@3.11
 ## Run
 
 ```bash
+astranotes
+
+// or
+
 python -m astranotes
 ```
 
@@ -82,7 +86,7 @@ required (no default) so nothing demo-y leaks into source control.
 pytest -q
 ```
 
-78 tests; 5 legacy CLI tests are quarantined behind `--run-cli`. All tests
+95 tests; 5 legacy CLI tests are quarantined behind `--run-cli`. All tests
 are headless and use only `tmp_path` fixtures + real services (no mocked
 storage in security-critical paths).
 
