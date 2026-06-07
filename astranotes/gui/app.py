@@ -619,8 +619,8 @@ class AstraNotesApp(ctk.CTk):
         if locked:
             ctk.CTkButton(
                 bar,
-                text="Unlock All",
-                width=74,
+                text="🔓 Unlock All",
+                width=92,
                 height=22,
                 corner_radius=11,
                 fg_color=(_ACCENT, _ACCENT),
@@ -628,6 +628,21 @@ class AstraNotesApp(ctk.CTk):
                 text_color="#FFFFFF",
                 font=ctk.CTkFont(size=10, weight="bold"),
                 command=lambda: (self._unlock_vault(self), self.refresh_notes_list()),
+            ).grid(row=0, column=1, sticky="e")
+        else:
+            ctk.CTkButton(
+                bar,
+                text="🔒 Lock",
+                width=66,
+                height=22,
+                corner_radius=11,
+                fg_color="transparent",
+                hover_color=_ACCENT_LT,
+                border_width=1,
+                border_color=_BORDER,
+                text_color=_TXT1,
+                font=ctk.CTkFont(size=10, weight="bold"),
+                command=self._lock_vault,
             ).grid(row=0, column=1, sticky="e")
 
     def _render_sidebar_item(self, note: Note) -> None:
@@ -906,21 +921,36 @@ class AstraNotesApp(ctk.CTk):
         ).pack(anchor="w", padx=16, pady=(0, 10))
         btns = ctk.CTkFrame(vault_card, fg_color="transparent")
         btns.pack(fill="x", padx=16, pady=(0, 16))
+
+        if self._controller.has_privacy_key:
+            ctk.CTkButton(
+                btns,
+                text="🔒 Lock Vault",
+                width=130,
+                height=34,
+                corner_radius=17,
+                fg_color=(_ACCENT, _ACCENT),
+                hover_color=(_ACCENT_H, _ACCENT_H),
+                text_color="#FFFFFF",
+                command=lambda: (self._lock_vault(win), self._reopen_settings(win)),
+            ).pack(side="left", padx=(0, 8))
+        else:
+            ctk.CTkButton(
+                btns,
+                text="🔓 Unlock Vault",
+                width=130,
+                height=34,
+                corner_radius=17,
+                fg_color=(_ACCENT, _ACCENT),
+                hover_color=(_ACCENT_H, _ACCENT_H),
+                text_color="#FFFFFF",
+                command=lambda: (self._unlock_vault(win), self._reopen_settings(win)),
+            ).pack(side="left", padx=(0, 8))
+
         ctk.CTkButton(
             btns,
-            text="Unlock Vault",
-            width=130,
-            height=34,
-            corner_radius=17,
-            fg_color=(_ACCENT, _ACCENT),
-            hover_color=(_ACCENT_H, _ACCENT_H),
-            text_color="#FFFFFF",
-            command=lambda: self._unlock_vault(win),
-        ).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(
-            btns,
-            text="Reset Passphrase",
-            width=150,
+            text="Change Passphrase",
+            width=160,
             height=34,
             corner_radius=17,
             fg_color="transparent",
@@ -928,7 +958,7 @@ class AstraNotesApp(ctk.CTk):
             border_width=1,
             border_color=_BORDER,
             text_color=_TXT1,
-            command=lambda: self._reset_vault_passphrase(win),
+            command=lambda: (self._reset_vault_passphrase(win), self._reopen_settings(win)),
         ).pack(side="left")
 
         ctk.CTkButton(win, text="Close", width=100, height=36, corner_radius=18,
@@ -984,6 +1014,26 @@ class AstraNotesApp(ctk.CTk):
 
     def _open_vault(self) -> None:
         self._open_settings()
+
+    def _reopen_settings(self, win: ctk.CTkToplevel) -> None:
+        """Rebuild the Settings dialog so vault lock/unlock state is reflected."""
+        try:
+            if win.winfo_exists():
+                win.destroy()
+        except Exception:
+            pass
+        self._open_settings()
+
+    def _lock_vault(self, parent: ctk.CTk | None = None) -> None:
+        if not self._controller.has_privacy_key:
+            self._set_status("Master vault is already locked")
+            return
+        self._controller.lock_vault()
+        self._key_source = "master vault (locked)"
+        self._event_log.log("vault_locked", "key cleared from memory")
+        self._new_note()
+        self.refresh_notes_list()
+        self._set_status("Master vault locked")
 
     def _unlock_vault(self, parent: ctk.CTk | None = None) -> bool:
         store = passphrase_store()

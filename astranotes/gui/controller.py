@@ -40,6 +40,10 @@ class NotesController:
         """Inject a passphrase-derived PrivacyService after launch (ADR-005)."""
         self._manager._privacy = privacy
 
+    def lock_vault(self) -> None:
+        """Drop the in-memory key so private notes re-lock until re-unlocked."""
+        self._manager._privacy = None
+
     def reset_vault(self, privacy: PrivacyService) -> None:
         self._manager.rotate_privacy(privacy)
 
