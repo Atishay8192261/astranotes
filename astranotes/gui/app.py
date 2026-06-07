@@ -497,92 +497,64 @@ class AstraNotesApp(ctk.CTk):
             self._render_sidebar_item(note)
 
     def _render_sidebar_item(self, note: Note) -> None:
+        """Notion-style compact single-row list item."""
         is_locked   = note.is_private and not self._controller.has_privacy_key
         is_selected = self._selected is not None and self._selected.id == note.id
 
-        # Card background
+        # Row background — selected gets a soft violet tint, otherwise transparent
         if is_selected:
-            card_bg  = _SELECTED
-            bord_col = (_ACCENT, _ACCENT)
+            row_bg = ("#EEEAFF", "#2D2550")
         elif is_locked:
-            card_bg  = _LOCKED_BG
-            bord_col = _LOCKED_BD
+            row_bg = ("#FFF8EE", "#2A1F0F")
         else:
-            card_bg  = _PANEL
-            bord_col = _BORDER
+            row_bg = "transparent"
 
-        card = ctk.CTkFrame(
+        row = ctk.CTkFrame(
             self._sidebar,
-            fg_color=card_bg,
-            corner_radius=12,
-            border_width=1,
-            border_color=bord_col,
+            fg_color=row_bg,
+            corner_radius=6,
             cursor="hand2",
         )
-        card.pack(fill="x", padx=4, pady=4)
-        card.grid_columnconfigure(1, weight=1)
+        row.pack(fill="x", padx=2, pady=1)
+        row.grid_columnconfigure(1, weight=1)
 
-        # Coloured left-edge strip
-        strip_color = (
-            _PRIVATE_STRIP if is_locked
-            else (_ACCENT if is_selected else ("#D0C8F8", "#3D3575"))
-            if note.is_private
-            else "transparent"
+        # Left accent dot (2 px wide, full height)
+        dot_color = (
+            _WARN if is_locked
+            else (_ACCENT if note.is_private else "transparent")
         )
-        ctk.CTkFrame(
-            card, width=3, corner_radius=2, fg_color=strip_color
-        ).grid(row=0, column=0, rowspan=3, sticky="ns", padx=(6, 0), pady=8)
+        ctk.CTkFrame(row, width=2, corner_radius=1, fg_color=dot_color).grid(
+            row=0, column=0, sticky="ns", padx=(4, 0), pady=5
+        )
 
-        # Title row
-        title_text = f"🔒  {note.title or '(untitled)'}" if is_locked else (note.title or "(untitled)")
+        # Title — single line, truncated
+        icon = "🔒 " if is_locked else ("🔐 " if note.is_private else "")
+        title_text  = icon + (note.title or "(untitled)")
         title_color = (_WARN, "#C9A84C") if is_locked else _TXT1
+        title_font  = ctk.CTkFont(size=13, weight="bold" if is_selected else "normal")
+
         title_lbl = ctk.CTkLabel(
-            card,
-            text=_truncate(title_text, 36),
-            font=ctk.CTkFont(size=13, weight="bold"),
+            row,
+            text=_truncate(title_text, 32),
+            font=title_font,
             text_color=title_color,
             anchor="w",
-            justify="left",
         )
-        title_lbl.grid(row=0, column=1, sticky="w", padx=(8, 10), pady=(10, 1))
+        title_lbl.grid(row=0, column=1, sticky="w", padx=(8, 4), pady=(6, 6))
 
-        # Body preview
-        if is_locked:
-            preview = "Encrypted — click to unlock"
-            prev_color = (_WARN, "#C9A84C")
-        else:
-            raw_preview = note.body.strip().replace("\n", " ")
-            preview = _truncate(raw_preview, 70) if raw_preview else "—"
-            prev_color = _TXT2
-
-        prev_lbl = ctk.CTkLabel(
-            card,
-            text=preview,
-            font=ctk.CTkFont(size=11),
-            text_color=prev_color,
-            anchor="w",
-            justify="left",
-        )
-        prev_lbl.grid(row=1, column=1, sticky="w", padx=(8, 10), pady=(0, 4))
-
-        # Meta row: date + tags
-        meta_parts = [f"{note.modified_at:%b %d, %H:%M}"]
-        if note.is_private and not is_locked:
-            meta_parts.append("🔐 private")
-        if note.tags and not is_locked:
-            meta_parts.extend(f"#{t}" for t in note.tags[:3])
-
-        meta_lbl = ctk.CTkLabel(
-            card,
-            text="   ".join(meta_parts),
+        # Date — right-aligned, muted
+        date_lbl = ctk.CTkLabel(
+            row,
+            text=f"{note.modified_at:%b %d}",
             font=ctk.CTkFont(size=10),
             text_color=_TXT3,
-            anchor="w",
+            anchor="e",
+            width=42,
         )
-        meta_lbl.grid(row=2, column=1, sticky="w", padx=(8, 10), pady=(0, 8))
+        date_lbl.grid(row=0, column=2, sticky="e", padx=(0, 8), pady=6)
 
-        # Click binding on all child widgets
-        for widget in card.winfo_children() + [card]:
+        # Click binding
+        for widget in (row, title_lbl, date_lbl):
             widget.bind(
                 "<Button-1>",
                 lambda _e, n=note, lk=is_locked: self._select_note(n, lk),
@@ -792,7 +764,7 @@ class AstraNotesApp(ctk.CTk):
         self._event_log.log("about_opened", "")
         win = ctk.CTkToplevel(self)
         win.title("About AstraNotes")
-        win.geometry("480x320")
+        win.geometry("500x420")
         win.resizable(False, False)
         win.transient(self)
         win.configure(fg_color=_BG)
@@ -807,7 +779,7 @@ class AstraNotesApp(ctk.CTk):
                      font=ctk.CTkFont(size=13), text_color=_TXT2).pack(anchor="w", padx=24, pady=(0, 14))
 
         card = ctk.CTkFrame(win, fg_color=_PANEL, corner_radius=12, border_width=1, border_color=_BORDER)
-        card.pack(fill="x", padx=24, pady=(0, 14))
+        card.pack(fill="x", padx=24, pady=(0, 16))
         specs = [
             ("Architecture",  "3-tier MVC  ·  View → Controller → Model"),
             ("Encryption",    "Fernet (AES-128-CBC + HMAC-SHA256)"),
@@ -816,16 +788,19 @@ class AstraNotesApp(ctk.CTk):
             ("Course",        "CSEN 296B-2  ·  Spring 2026  ·  SCU"),
         ]
         for lbl, val in specs:
-            row = ctk.CTkFrame(card, fg_color="transparent")
-            row.pack(fill="x", padx=16, pady=4)
-            ctk.CTkLabel(row, text=lbl, font=ctk.CTkFont(size=12, weight="bold"),
+            r = ctk.CTkFrame(card, fg_color="transparent")
+            r.pack(fill="x", padx=16, pady=5)
+            ctk.CTkLabel(r, text=lbl, font=ctk.CTkFont(size=12, weight="bold"),
                          text_color=_TXT2, width=130, anchor="w").pack(side="left")
-            ctk.CTkLabel(row, text=val, font=ctk.CTkFont(size=12),
+            ctk.CTkLabel(r, text=val, font=ctk.CTkFont(size=12),
                          text_color=_TXT1, anchor="w").pack(side="left")
 
-        ctk.CTkButton(win, text="Close", width=100, height=36, corner_radius=18,
+        ctk.CTkFrame(card, height=8, fg_color="transparent").pack()
+
+        ctk.CTkButton(win, text="Close", width=120, height=38, corner_radius=19,
                       fg_color=(_ACCENT, _ACCENT), hover_color=(_ACCENT_H, _ACCENT_H),
-                      text_color="#FFFFFF", command=win.destroy).pack(pady=(0, 20))
+                      text_color="#FFFFFF", font=ctk.CTkFont(size=13),
+                      command=win.destroy).pack(pady=(0, 24))
 
     def _toggle_theme(self) -> None:
         mode = "light" if ctk.get_appearance_mode() == "Dark" else "dark"
