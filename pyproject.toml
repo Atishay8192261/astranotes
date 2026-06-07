@@ -15,6 +15,9 @@ dependencies = [
     # License: CC0-1.0 (public domain; strictly more permissive than the
     # SPR-04 MIT/Apache/BSD allowlist - accepted via ADR-006)
     "customtkinter==5.2.2",
+    # Icon generation + CTkImage support
+    # License: MIT-CMU
+    "Pillow>=10.0",
 ]
 
 [project.optional-dependencies]
