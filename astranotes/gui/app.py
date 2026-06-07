@@ -109,11 +109,19 @@ class AstraNotesApp(ctk.CTk):
         self.after(100, self._raise_to_front)
 
     def _raise_to_front(self) -> None:
-        """Bring window to front — needed when launched from a .app shell script."""
+        import os, subprocess, sys
         self.lift()
         self.focus_force()
         self.attributes("-topmost", True)
-        self.after(500, lambda: self.attributes("-topmost", False))
+        if sys.platform == "darwin":
+            pid = os.getpid()
+            subprocess.Popen(
+                ["osascript", "-e",
+                 f'tell application "System Events" to set frontmost of'
+                 f' (first process whose unix id is {pid}) to true'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        self.after(800, lambda: self.attributes("-topmost", False))
 
     # ── HEADER ─────────────────────────────────────────────────────────────────
 
