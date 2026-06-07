@@ -9,9 +9,9 @@ through the same NoteManager dependency-injection seam the CLI used.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Optional
 from uuid import UUID
-
-from typing import Optional
 
 from astranotes.config import resolve_data_dir, resolve_privacy
 from astranotes.models.exceptions import AstraNotesError
@@ -98,6 +98,37 @@ class NotesController:
         except AstraNotesError as exc:
             return ActionResult(False, str(exc))
         return ActionResult(True, "Note deleted")
+
+    def duplicate_note(self, note_id: UUID) -> ActionResult:
+        try:
+            note = self._manager.duplicate_note(note_id)
+        except AstraNotesError as exc:
+            return ActionResult(False, str(exc))
+        return ActionResult(True, f"Duplicated as '{note.title}'")
+
+    def get_note(self, note_id: UUID) -> Optional[Note]:
+        try:
+            return self._manager.get_note(note_id)
+        except AstraNotesError:
+            return None
+
+    def list_all_for_display(self) -> list[Note]:
+        try:
+            return self._manager.list_all_for_display()
+        except AstraNotesError:
+            return []
+
+    def get_stats(self) -> dict[str, Any]:
+        data_dir = Path(resolve_data_dir())
+        stats = self._manager.get_stats()
+        storage_bytes = (
+            sum(f.stat().st_size for f in data_dir.glob("*.json") if f.is_file())
+            if data_dir.exists()
+            else 0
+        )
+        stats["storage_bytes"] = storage_bytes
+        stats["data_dir"] = str(data_dir)
+        return stats
 
 
 _LEGACY = object()

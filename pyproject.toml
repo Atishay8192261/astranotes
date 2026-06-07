@@ -20,8 +20,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     # Unit testing framework (SPR-03)
-    # License: MIT
     "pytest==8.3.4",
+    # BDD testing — Gherkin feature files + step definitions
+    "pytest-bdd>=7.3,<9",
+    # Static security analysis (SAST) gate
+    "bandit[toml]>=1.7",
 ]
 
 [tool.setuptools.packages.find]

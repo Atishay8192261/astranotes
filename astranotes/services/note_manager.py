@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from astranotes.models.exceptions import NoteNotFoundError, PersistenceError
@@ -162,6 +162,62 @@ class NoteManager:
     def _require_privacy(self) -> None:
         if self._privacy is None:
             raise PersistenceError("Operation requires a configured privacy key")
+
+    def get_note(self, note_id: UUID) -> Note:
+        """Retrieve a single note, decrypted if private."""
+        stored = self._load_stored(note_id)
+        if stored.is_private:
+            return replace(stored, body=self._plaintext_body(stored))
+        return stored
+
+    def duplicate_note(self, note_id: UUID) -> Note:
+        """Create a copy of a note with 'Copy of ' title prefix (FR-05 extension)."""
+        stored = self._load_stored(note_id)
+        plaintext = self._plaintext_body(stored) if stored.is_private else stored.body
+        return self.create_note(
+            title=f"Copy of {stored.title}",
+            body=plaintext,
+            is_private=stored.is_private,
+            tags=list(stored.tags),
+        )
+
+    def list_all_for_display(self) -> list[Note]:
+        """Return all notes including locked ones.
+
+        Private notes that cannot be decrypted (no key or wrong key) are
+        included with body="" and is_private=True so the UI can show a lock
+        indicator. This differs from list_notes() which silently skips them.
+        """
+        loaded = self._repository.list_all()
+        result: list[Note] = []
+        for stored in loaded:
+            if stored.is_private:
+                if self._privacy is None:
+                    result.append(replace(stored, body=""))
+                    continue
+                try:
+                    plaintext = self._privacy.decrypt(stored.body)
+                    result.append(replace(stored, body=plaintext))
+                except Exception:
+                    result.append(replace(stored, body=""))
+            else:
+                result.append(stored)
+        result.sort(key=lambda n: (n.modified_at, n.created_at), reverse=True)
+        return result
+
+    def get_stats(self) -> dict[str, Any]:
+        """Return operational statistics for the admin/telemetry panel."""
+        all_notes = self._repository.list_all()
+        total = len(all_notes)
+        private = sum(1 for n in all_notes if n.is_private)
+        public_bodies = [len(n.body) for n in all_notes if not n.is_private]
+        avg_body = sum(public_bodies) / len(public_bodies) if public_bodies else 0.0
+        return {
+            "total_notes": total,
+            "public_notes": total - private,
+            "private_notes": private,
+            "avg_body_length": avg_body,
+        }
 
     def search_notes(self, keyword: str) -> list[Note]:
         """Keyword search across titles and bodies (FR-07).
