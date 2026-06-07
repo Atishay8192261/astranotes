@@ -99,3 +99,49 @@ are omitted per the course guidance.
 **Decision:** All security-critical test paths (`test_note_manager.py`, `test_privacy.py`, BDD encryption scenarios) use real `JsonFileRepository` with `tmp_path` pytest fixtures. No mocked storage in any encryption test.
 
 **Rationale:** A mocked encrypt/decrypt path would not catch ciphertext-to-disk bugs (SPR-01). The one-file-per-note JSON design makes real-storage tests trivially fast (< 10 s for 92 tests).
+
+---
+
+## Human Oversight Summary — Accepted / Refined / Rejected
+
+The rubric asks specifically what was accepted, refined, or rejected through
+human oversight. AI was used as a pair-programmer across the SDLC (requirements
+drafting, UML generation, code scaffolding, test design), but no AI output was
+merged without human cross-examination. Concrete examples:
+
+### Accepted (verified, then kept)
+- **Fernet + PBKDF2-HMAC-SHA256 (600k)** for encryption. Accepted *after*
+  confirming Fernet is authenticated (AES-128-CBC + HMAC) and the iteration
+  count against the OWASP 2023 guidance — not on the AI's word alone.
+- **One-JSON-file-per-note repository** behind a `NoteRepository` ABC. Accepted
+  because it kept the migration path to SQLite a single-file change.
+- **3-tier separation** (view → controller → services → repository). Accepted
+  and then *enforced* with headless controller tests to prove the view holds
+  no logic.
+
+### Refined (AI draft was a starting point, then changed)
+- **Theme:** AI defaulted to CustomTkinter's stock blue. Refined into a custom
+  warm-white / violet token palette so the UI is distinguishable and readable.
+- **Private-note visibility:** AI's first implementation silently skipped
+  locked notes. Refined into `list_all_for_display()` so locked notes appear
+  with a 🔒 and an unlock prompt — `list_notes()` kept for the secure path.
+- **Vault UX:** refined the single-passphrase model into an explicit
+  lock/unlock-all control and a passphrase-change flow that re-verifies the
+  current passphrase before rotating.
+
+### Rejected (AI suggestion declined after review)
+- **Mocked storage in security tests** — rejected. A mocked encrypt/decrypt
+  path can hide a real ciphertext-to-disk bug, so all encryption tests use a
+  real `JsonFileRepository` on a `tmp_path`.
+- **Raw manual AES-CBC** — rejected in favour of Fernet to avoid hand-rolling
+  IV/padding/HMAC, a classic source of crypto bugs.
+- **Pivot to a Flask/Django multi-user web app** — rejected given the remaining
+  time budget; the risk of a half-finished web app outweighed the ceiling.
+- **AI-generated `fg_color=("transparent", "transparent")`** — rejected at the
+  code level; CustomTkinter forbids a transparency tuple and it crashed on
+  launch. Caught by running the app, not by trusting the snippet.
+- **`source venv/bin/activate` in the macOS .app launcher** — rejected after it
+  failed under the macOS sandbox; replaced with a direct interpreter path.
+
+The throughline: AI accelerated drafting, but every security-, architecture-,
+and correctness-relevant output was tested or reasoned through before adoption.
