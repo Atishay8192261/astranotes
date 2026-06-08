@@ -74,19 +74,6 @@ private note. The passphrase derives the encryption key in memory only and
 is never written to disk; forgetting it means the private notes cannot be
 recovered (by design — there is no backdoor).
 
-### Seed demo data
-
-```bash
-python scripts/seed_demo_notes.py --clean --passphrase <pick-anything>
-ASTRANOTES_DATA_DIR=demo-data \
-ASTRANOTES_PASSPHRASE_PATH=demo-data/passphrase.json \
-python -m astranotes
-```
-
-This populates `./demo-data/` with 12 example notes (8 public, 4 private),
-leaving your real `~/.astranotes/` directory untouched. The passphrase is
-required (no default) so nothing demo-y leaks into source control.
-
 ## Test
 
 ```bash
